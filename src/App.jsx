@@ -28,7 +28,6 @@ function App() {
   const [markdownBody, setMarkdownBody] = useState(DEFAULT_BODY);
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');
-  const [copyText, setCopyText] = useState('Copy to Clipboard');
 
   // Scrollspy logic
   useEffect(() => {
@@ -74,13 +73,6 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleCopyToClipboard = () => {
-    const fullMarkdown = generateMarkdown(frontmatter, markdownBody);
-    navigator.clipboard.writeText(fullMarkdown);
-    setCopyText('Copied!');
-    setTimeout(() => setCopyText('Copy to Clipboard'), 2000);
-  };
-
   return (
     <div className="app-container">
       {/* LEFT PANE - SETTINGS & TOC */}
@@ -111,7 +103,6 @@ function App() {
         
         <div className="actions" style={{ padding: '1.5rem', borderTop: '1px solid var(--color-zinc-800)' }}>
           <button className="btn" onClick={handleDownload}>Download .md</button>
-          <button className="btn btn-secondary" onClick={handleCopyToClipboard}>{copyText}</button>
         </div>
       </div>
 
@@ -119,7 +110,7 @@ function App() {
       <Editor value={markdownBody} onChange={setMarkdownBody} />
       
       {/* RIGHT PANE - PREVIEW */}
-      <Preview content={markdownBody} onHeadingsChange={setHeadings} />
+      <Preview content={markdownBody} frontmatter={frontmatter} onHeadingsChange={setHeadings} />
     </div>
   );
 }

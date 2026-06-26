@@ -3,6 +3,7 @@ import { blogFrontmatterSchema } from '../utils/schema';
 
 export default function MetadataForm({ data, onChange }) {
   const [errors, setErrors] = useState({});
+  const [tagsStr, setTagsStr] = useState((data.tags || []).join(', '));
 
   useEffect(() => {
     try {
@@ -22,6 +23,7 @@ export default function MetadataForm({ data, onChange }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'tags') {
+      setTagsStr(value);
       onChange({ ...data, [name]: value.split(',').map(t => t.trim()).filter(Boolean) });
     } else {
       onChange({ ...data, [name]: value });
@@ -57,7 +59,7 @@ export default function MetadataForm({ data, onChange }) {
 
       <div className="form-group">
         <label>Tags (comma separated)</label>
-        <input type="text" name="tags" value={(data.tags || []).join(', ')} onChange={handleChange} placeholder="AI, React, Vite" />
+        <input type="text" name="tags" value={tagsStr} onChange={handleChange} placeholder="AI, React, Vite" />
       </div>
       
       {/* TOC will be injected here by App layout if needed, or we can just leave it to App */}

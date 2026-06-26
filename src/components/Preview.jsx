@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Calendar, Clock } from 'lucide-react';
 
 // Custom component for copyable code blocks
 const CodeBlock = ({ node, inline, className, children, ...props }) => {
@@ -40,7 +40,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   );
 };
 
-export default function Preview({ content, onHeadingsChange }) {
+export default function Preview({ content, frontmatter, onHeadingsChange }) {
   const previewRef = useRef(null);
   const [progress, setProgress] = useState(0);
 
@@ -96,6 +96,32 @@ export default function Preview({ content, onHeadingsChange }) {
         <div id="progress-bar" style={{ width: `${progress}%` }}></div>
       </div>
       <div className="preview-content prose-preview">
+        {/* Render Frontmatter Header */}
+        {frontmatter && (
+          <div className="preview-header">
+            {frontmatter.tags && frontmatter.tags.length > 0 && (
+              <div className="tags-container">
+                {frontmatter.tags.map(tag => (
+                  <span key={tag} className="tag-pill">{tag}</span>
+                ))}
+              </div>
+            )}
+            <h1 className="post-title">{frontmatter.title}</h1>
+            <div className="post-meta">
+              {frontmatter.date && (
+                <span className="meta-item">
+                  <Calendar size={14} /> {frontmatter.date}
+                </span>
+              )}
+              {frontmatter.readTime && (
+                <span className="meta-item">
+                  <Clock size={14} /> {frontmatter.readTime}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
           components={{

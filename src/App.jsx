@@ -3,7 +3,7 @@ import MetadataForm from './components/MetadataForm';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import { generateMarkdown, parseMarkdownFile } from './utils/markdown';
-import { FileText, Plus, FolderOpen, ChevronDown, Upload } from 'lucide-react';
+import { FileText, Plus, FolderOpen, Folder, FolderPlus, ChevronDown, Upload, Trash2, Edit2 } from 'lucide-react';
 import './index.css';
 
 const DEFAULT_BODY = `
@@ -32,6 +32,7 @@ function App() {
     }
   ]);
   const [activeFileId, setActiveFileId] = useState('default-1');
+  const [emptyFolders, setEmptyFolders] = useState([]);
 
   // Load files from the local filesystem API on mount
   useEffect(() => {
@@ -39,16 +40,27 @@ function App() {
       .then(res => res.json())
       .then(data => {
         if (data && data.length > 0) {
-          const loadedFiles = data.map(d => {
-            const parsed = parseMarkdownFile(d.content);
-            return {
-              id: d.filename,
-              frontmatter: parsed.frontmatter,
-              body: parsed.body,
-            };
+          const loadedFiles = [];
+          const loadedEmptyFolders = [];
+          
+          data.forEach(d => {
+            if (d.isEmptyFolder) {
+              loadedEmptyFolders.push(d.name);
+            } else {
+              const parsed = parseMarkdownFile(d.content);
+              loadedFiles.push({
+                id: d.filename,
+                frontmatter: parsed.frontmatter,
+                body: parsed.body,
+              });
+            }
           });
-          setFiles(loadedFiles);
-          setActiveFileId(loadedFiles[0].id);
+          
+          if (loadedFiles.length > 0) {
+            setFiles(loadedFiles);
+            setActiveFileId(loadedFiles[0].id);
+          }
+          setEmptyFolders(loadedEmptyFolders);
         }
       })
       .catch(err => console.error("Could not load local files", err));
@@ -61,10 +73,19 @@ function App() {
   };
 
   const createNewFile = () => {
+    let slug = prompt("Enter post URL slug (e.g., my-new-post):");
+    if (!slug) return;
+    slug = slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    
+    if (files.find(f => f.id === slug) || emptyFolders.includes(slug)) {
+       alert("That name already exists!");
+       return;
+    }
+
     const newFile = {
-      id: Date.now().toString(),
+      id: slug,
       frontmatter: {
-        title: "Untitled Post",
+        title: slug.replace(/-/g, ' '),
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
         readTime: "5 min read",
         summary: "",
@@ -72,6 +93,7 @@ function App() {
       },
       body: "# New Post\n\nStart writing here..."
     };
+    
     setFiles([...files, newFile]);
     setActiveFileId(newFile.id);
   };
@@ -100,11 +122,110 @@ function App() {
     e.target.value = ''; // Reset input
   };
 
+  const createNewFolder = async () => {
+    const folderName = prompt("Enter new folder name:");
+    if (!folderName) return;
+    
+    // Optimistic update
+    setEmptyFolders(prev => [...prev, folderName]);
+    
+    try {
+      await fetch('/api/mkdir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderName })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteItem = async (e, targetId, isFile) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to completely delete "${targetId}"?`)) return;
+    
+    try {
+      const res = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: targetId })
+      });
+      if (res.ok) {
+        if (isFile) {
+           setFiles(prev => prev.filter(f => f.id !== targetId));
+           if (activeFileId === targetId) {
+             const remaining = files.filter(f => f.id !== targetId);
+             setActiveFileId(remaining.length > 0 ? remaining[0].id : null);
+           }
+        } else {
+           setEmptyFolders(prev => prev.filter(f => f !== targetId));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const renameItem = async (e, oldName, isFile) => {
+    e.stopPropagation();
+    const newName = prompt("Enter new name:", oldName);
+    if (!newName || newName === oldName) return;
+    
+    // Format newName to be slug-friendly
+    const cleanName = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    
+    if (files.find(f => f.id === cleanName) || emptyFolders.includes(cleanName)) {
+      alert("A folder with that name already exists!");
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldName, newName: cleanName })
+      });
+      if (res.ok) {
+        if (isFile) {
+           setFiles(prev => prev.map(f => f.id === oldName ? { ...f, id: cleanName } : f));
+           if (activeFileId === oldName) setActiveFileId(cleanName);
+           setCollapsedFolders(prev => {
+             const updated = { ...prev, [cleanName]: prev[oldName] };
+             delete updated[oldName];
+             return updated;
+           });
+        } else {
+           setEmptyFolders(prev => prev.map(f => f === oldName ? cleanName : f));
+           setCollapsedFolders(prev => {
+             const updated = { ...prev, [cleanName]: prev[oldName] };
+             delete updated[oldName];
+             return updated;
+           });
+        }
+      } else {
+        alert("Failed to rename on disk");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');
   const [editorWidth, setEditorWidth] = useState(50);
   const [activeSidebarTab, setActiveSidebarTab] = useState('settings');
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [collapsedFolders, setCollapsedFolders] = useState({});
+  
+  const toggleFolder = (folderName) => {
+    setCollapsedFolders(prev => ({
+      ...prev,
+      [folderName]: !prev[folderName]
+    }));
+  };
+  
   const isDragging = useRef(false);
+  const isSidebarDragging = useRef(false);
 
   const startDragging = (e) => {
     e.preventDefault();
@@ -117,7 +238,6 @@ function App() {
 
   const onDrag = (e) => {
     if (!isDragging.current) return;
-    const sidebarWidth = 320; // 320px for the single sidebar
     const availableWidth = window.innerWidth - sidebarWidth;
     const newWidth = ((e.clientX - sidebarWidth) / availableWidth) * 100;
     if (newWidth >= 10 && newWidth <= 90) {
@@ -129,6 +249,32 @@ function App() {
     isDragging.current = false;
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDragging);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  // Sidebar drag logic
+  const startSidebarDragging = (e) => {
+    e.preventDefault();
+    isSidebarDragging.current = true;
+    document.addEventListener('mousemove', onSidebarDrag);
+    document.addEventListener('mouseup', stopSidebarDragging);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const onSidebarDrag = (e) => {
+    if (!isSidebarDragging.current) return;
+    const newWidth = e.clientX;
+    if (newWidth >= 200 && newWidth <= 800) {
+      setSidebarWidth(newWidth);
+    }
+  };
+
+  const stopSidebarDragging = () => {
+    isSidebarDragging.current = false;
+    document.removeEventListener('mousemove', onSidebarDrag);
+    document.removeEventListener('mouseup', stopSidebarDragging);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   };
@@ -164,7 +310,7 @@ function App() {
   }, [headings, activeFile.body]); // re-bind when markdown changes
 
   const handleSaveToDisk = async () => {
-    const slug = activeFile.frontmatter.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') || 'untitled';
+    const slug = activeFile.id;
     const fullMarkdown = generateMarkdown(activeFile.frontmatter, activeFile.body);
     
     try {
@@ -174,11 +320,6 @@ function App() {
         body: JSON.stringify({ slug, content: fullMarkdown })
       });
       if (res.ok) {
-        // Update ID if title/slug changed
-        if (activeFile.id !== slug) {
-           updateActiveFile({ id: slug });
-           setActiveFileId(slug);
-        }
         alert(`Saved successfully to src/content/blog/${slug}/${slug}.md`);
       } else {
         alert('Failed to save file');
@@ -191,7 +332,7 @@ function App() {
   return (
     <div className="app-container">
       {/* SINGLE LEFT SIDEBAR */}
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '320px', backgroundColor: '#121214', borderRight: '1px solid var(--color-zinc-800)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: `${sidebarWidth}px`, backgroundColor: '#121214', borderRight: '1px solid var(--color-zinc-800)', flexShrink: 0 }}>
         
         {/* TABS HEADER */}
         <div style={{ display: 'flex', padding: '1rem', gap: '0.5rem', borderBottom: '1px solid var(--color-zinc-800)' }}>
@@ -228,6 +369,9 @@ function App() {
                   <button onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="Open File">
                     <Upload size={16} />
                   </button>
+                  <button onClick={createNewFolder} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New Folder">
+                    <FolderPlus size={16} />
+                  </button>
                   <button onClick={createNewFile} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
                     <Plus size={16} />
                   </button>
@@ -235,23 +379,114 @@ function App() {
               </div>
               
               <div style={{ flex: 1, padding: '0.75rem 0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: '#fff', fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', marginBottom: '0.25rem' }}>
-                  <ChevronDown size={14} style={{ color: 'var(--color-zinc-400)' }} /> 
-                  <FolderOpen size={14} style={{ color: 'var(--color-teal)' }} />
+                <div 
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: '#fff', fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}
+                  onClick={() => toggleFolder('root')}
+                >
+                  <div style={{ transform: collapsedFolders['root'] ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                    <ChevronDown size={14} style={{ color: 'var(--color-zinc-400)' }} /> 
+                  </div>
+                  {collapsedFolders['root'] ? (
+                    <Folder size={14} style={{ color: 'var(--color-teal)' }} />
+                  ) : (
+                    <FolderOpen size={14} style={{ color: 'var(--color-teal)' }} />
+                  )}
                   src/content/blog
                 </div>
                 
-                {files.map(f => {
-                  const isActive = f.id === activeFileId;
-                  const slug = f.frontmatter.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') || 'untitled';
+                {/* Render Empty Folders */}
+                {!collapsedFolders['root'] && emptyFolders.map(folderName => {
+                  const isCollapsed = collapsedFolders[folderName];
                   return (
-                    <div 
-                      key={f.id} 
-                      onClick={() => setActiveFileId(f.id)} 
-                      className={`file-item ${isActive ? 'active' : ''}`}
-                    >
-                      <FileText size={14} style={{ minWidth: '14px' }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slug}.md</span>
+                    <div key={folderName} style={{ marginBottom: '0.5rem' }}>
+                      <div 
+                        className="folder-row"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: '0.25rem 0.5rem 0.25rem 1.5rem', cursor: 'pointer' }}
+                        onClick={() => toggleFolder(folderName)}
+                      >
+                        <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                          <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
+                        </div>
+                        {isCollapsed ? (
+                           <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
+                        ) : (
+                           <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
+                        )}
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folderName}</span>
+                        <Edit2 
+                          size={12} 
+                          className="hover-trash"
+                          onClick={(e) => renameItem(e, folderName, false)} 
+                          style={{ marginRight: '0.25rem' }}
+                        />
+                        <Trash2 
+                          size={12} 
+                          className="hover-trash"
+                          onClick={(e) => deleteItem(e, folderName, false)} 
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Render Files (and their folders) */}
+                {!collapsedFolders['root'] && files.map(f => {
+                  const isActive = f.id === activeFileId;
+                  const slug = f.id;
+                  const isCollapsed = collapsedFolders[slug];
+                  
+                  return (
+                    <div key={f.id} style={{ marginBottom: '0.5rem' }}>
+                      {/* Nested Post Folder */}
+                      <div 
+                        className="folder-row"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: '0.25rem 0.5rem 0.25rem 1.5rem', cursor: 'pointer' }}
+                        onClick={() => toggleFolder(slug)}
+                      >
+                        <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                          <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
+                        </div>
+                        {isCollapsed ? (
+                           <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
+                        ) : (
+                           <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
+                        )}
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slug}</span>
+                        <Edit2 
+                          size={12} 
+                          className="hover-trash"
+                          onClick={(e) => renameItem(e, slug, true)} 
+                          style={{ marginRight: '0.25rem' }}
+                        />
+                        <Trash2 
+                          size={12} 
+                          className="hover-trash"
+                          onClick={(e) => deleteItem(e, slug, true)} 
+                        />
+                      </div>
+                      
+                      {/* Markdown File */}
+                      {!isCollapsed && (
+                        <div 
+                          onClick={() => setActiveFileId(f.id)} 
+                          className={`file-item ${isActive ? 'active' : ''}`}
+                          style={{ paddingLeft: '2.75rem', marginTop: '0.125rem', display: 'flex', alignItems: 'center' }}
+                        >
+                          <FileText size={14} style={{ minWidth: '14px', marginRight: '0.375rem' }} />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slug}.md</span>
+                          <Edit2 
+                            size={12} 
+                            className="hover-trash"
+                            onClick={(e) => renameItem(e, slug, true)} 
+                            style={{ marginRight: '0.25rem' }}
+                          />
+                          <Trash2 
+                            size={12} 
+                            className="hover-trash"
+                            onClick={(e) => deleteItem(e, slug, true)} 
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -290,6 +525,21 @@ function App() {
           <button className="btn" onClick={handleSaveToDisk}>Save to Disk</button>
         </div>
       </div>
+
+      {/* SIDEBAR RESIZER */}
+      <div 
+        onMouseDown={startSidebarDragging}
+        style={{
+          width: '6px',
+          backgroundColor: '#121214',
+          cursor: 'col-resize',
+          zIndex: 10,
+          transition: 'background-color 0.2s',
+          flexShrink: 0
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-teal)'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = '#121214'}
+      />
 
       {/* MIDDLE PANE - EDITOR */}
       <div style={{ width: `${editorWidth}%`, flex: 'none', display: 'flex', flexDirection: 'column' }}>

@@ -35,6 +35,97 @@ const localFileSystemApi = () => {
           return;
         }
         
+        // Handle Mkdir
+        if (req.url === '/api/mkdir' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            try {
+              const { folderName } = JSON.parse(body);
+              const dir = path.resolve(process.cwd(), 'src', 'content', 'blog', folderName);
+              if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+              }
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // Handle Delete
+        if (req.url === '/api/delete' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            try {
+              const { target } = JSON.parse(body);
+              const dir = path.resolve(process.cwd(), 'src', 'content', 'blog', target);
+              const flatFile = path.resolve(process.cwd(), 'src', 'content', 'blog', `${target}.md`);
+              
+              if (fs.existsSync(dir) && fs.statSync(dir).isDirectory() && dir.startsWith(path.resolve(process.cwd(), 'src', 'content', 'blog'))) {
+                fs.rmSync(dir, { recursive: true, force: true });
+              } else if (fs.existsSync(flatFile) && flatFile.startsWith(path.resolve(process.cwd(), 'src', 'content', 'blog'))) {
+                fs.rmSync(flatFile, { force: true });
+              }
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // Handle Rename
+        if (req.url === '/api/rename' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            try {
+              const { oldName, newName } = JSON.parse(body);
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              const oldDir = path.join(blogDir, oldName);
+              const newDir = path.join(blogDir, newName);
+              const oldFlatFile = path.join(blogDir, `${oldName}.md`);
+              const newFlatFile = path.join(blogDir, `${newName}.md`);
+              
+              if (fs.existsSync(oldDir) && fs.statSync(oldDir).isDirectory()) {
+                fs.renameSync(oldDir, newDir);
+                
+                // If it contains a markdown file matching the old folder name, rename that too
+                const oldMd = path.join(newDir, `${oldName}.md`);
+                const newMd = path.join(newDir, `${newName}.md`);
+                if (fs.existsSync(oldMd)) {
+                  fs.renameSync(oldMd, newMd);
+                }
+              } else if (fs.existsSync(oldFlatFile)) {
+                fs.renameSync(oldFlatFile, newFlatFile);
+              }
+              
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
         // Handle Load
         if (req.url === '/api/files' && req.method === 'GET') {
           const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
@@ -49,10 +140,14 @@ const localFileSystemApi = () => {
             if (item.isDirectory()) {
               const subDir = path.join(blogDir, item.name);
               const subItems = fs.readdirSync(subDir).filter(f => f.endsWith('.md'));
-              subItems.forEach(f => {
-                const content = fs.readFileSync(path.join(subDir, f), 'utf-8');
-                fileData.push({ filename: item.name, content }); // slug is the folder name
-              });
+              if (subItems.length === 0) {
+                fileData.push({ isEmptyFolder: true, name: item.name });
+              } else {
+                subItems.forEach(f => {
+                  const content = fs.readFileSync(path.join(subDir, f), 'utf-8');
+                  fileData.push({ filename: item.name, content }); // slug is the folder name
+                });
+              }
             } else if (item.isFile() && item.name.endsWith('.md')) {
               const content = fs.readFileSync(path.join(blogDir, item.name), 'utf-8');
               fileData.push({ filename: item.name.replace('.md', ''), content });

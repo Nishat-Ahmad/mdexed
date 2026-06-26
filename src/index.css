@@ -340,3 +340,16 @@ body {
   color: var(--color-teal);
 }
 
+.hover-trash {
+  opacity: 0.2;
+  transition: opacity 0.2s, color 0.2s;
+}
+.hover-trash:hover {
+  opacity: 1 !important;
+  color: #ef4444 !important;
+}
+.folder-row:hover .hover-trash,
+.file-item:hover .hover-trash {
+  opacity: 0.6;
+}
+

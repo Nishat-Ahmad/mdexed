@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MetadataForm from './components/MetadataForm';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
@@ -28,6 +28,35 @@ function App() {
   const [markdownBody, setMarkdownBody] = useState(DEFAULT_BODY);
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');
+  const [editorWidth, setEditorWidth] = useState(50);
+  const isDragging = useRef(false);
+
+  const startDragging = (e) => {
+    e.preventDefault();
+    isDragging.current = true;
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDragging);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const onDrag = (e) => {
+    if (!isDragging.current) return;
+    const sidebarWidth = 320;
+    const availableWidth = window.innerWidth - sidebarWidth;
+    const newWidth = ((e.clientX - sidebarWidth) / availableWidth) * 100;
+    if (newWidth >= 10 && newWidth <= 90) {
+      setEditorWidth(newWidth);
+    }
+  };
+
+  const stopDragging = () => {
+    isDragging.current = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDragging);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
 
   // Scrollspy logic
   useEffect(() => {
@@ -107,10 +136,28 @@ function App() {
       </div>
 
       {/* MIDDLE PANE - EDITOR */}
-      <Editor value={markdownBody} onChange={setMarkdownBody} />
+      <div style={{ width: `${editorWidth}%`, flex: 'none', display: 'flex', flexDirection: 'column' }}>
+        <Editor value={markdownBody} onChange={setMarkdownBody} />
+      </div>
+      
+      {/* RESIZER */}
+      <div 
+        onMouseDown={startDragging}
+        style={{
+          width: '6px',
+          backgroundColor: '#121214',
+          cursor: 'col-resize',
+          zIndex: 10,
+          transition: 'background-color 0.2s',
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-teal)'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = '#121214'}
+      />
       
       {/* RIGHT PANE - PREVIEW */}
-      <Preview content={markdownBody} frontmatter={frontmatter} onHeadingsChange={setHeadings} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <Preview content={markdownBody} frontmatter={frontmatter} onHeadingsChange={setHeadings} />
+      </div>
     </div>
   );
 }

@@ -1,16 +1,44 @@
-# React + Vite
+# Astro Blog Editor (mdexed)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A custom, high-performance web-based Markdown/MDX editor built with React and Vite. It is designed specifically as an external writing tool and local CMS for an Astro-based blog, featuring an elegant Slate & Teal dark theme.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Local Filesystem Bridge**: Read and write files directly to your hard drive (`src/content/blog/`) via a custom Vite API plugin.
+- **Folder-per-Post Architecture**: Automatically organizes each new post into its own isolated directory (`slug/slug.md`).
+- **Dynamic Local Images**: Drag-and-drop or reference local images (`![alt](./image.png)`), and the editor will recursively search the filesystem and render them in the Live Preview.
+- **Astro Frontmatter Validation**: Uses Zod to ensure metadata (Title, Date, Read Time, Summary, Tags) strictly adheres to the blog's `config.ts` content collection schema.
+- **Live Typographic Fidelity**: The preview pane perfectly mimics the production Astro site's typography, including a scroll-triggered progress bar, scrollspy Table of Contents, and custom code block styling.
+- **Multi-File Memory Workspace**: Open multiple files simultaneously using the integrated File Explorer sidebar without losing unsaved changes.
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
+- [Node.js](https://nodejs.org/en/) (v18 or higher)
 
-## Expanding the Oxlint configuration
+### Installation
+1. Clone the repository and install dependencies:
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+2. Start the development server (which also powers the local file system API):
+```bash
+npm run dev
+```
+
+3. Open your browser to `http://localhost:5173`.
+
+### Workflow
+1. Click the `+` icon in the **Explorer** to create a new post, or click the **Upload** icon to import an existing `.md` file.
+2. Edit the Metadata settings in the sidebar. The UI will automatically generate a URL-friendly slug based on your title.
+3. Write your markdown. Local images placed alongside the file will render automatically.
+4. Click **Save to Disk**. Your post will be written locally to `src/content/blog/<slug>/<slug>.md`.
+
+## Technology Stack
+- **Framework**: React 18 + Vite
+- **Styling**: Vanilla CSS with custom CSS variables (Slate/Teal aesthetic)
+- **Editor**: `@monaco-editor/react`
+- **Markdown Processing**: `react-markdown`, `remark-gfm`
+- **Validation**: `zod`
+- **Icons**: `lucide-react`

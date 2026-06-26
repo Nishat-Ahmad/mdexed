@@ -131,6 +131,7 @@ body {
   padding: 0.5rem 0.75rem;
   font-family: inherit;
   font-size: 0.875rem;
+  resize: none; /* Disable browser resize handle */
 }
 .form-group input:focus, .form-group textarea:focus {
   outline: none;
@@ -315,5 +316,27 @@ body {
   display: flex;
   align-items: center;
   gap: 0.375rem;
+}
+
+/* File Explorer Styles */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem 0.375rem 1.5rem; /* left padding for fake folder indent */
+  color: var(--color-zinc-400);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  margin-bottom: 0.125rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+.file-item:hover {
+  background-color: var(--color-zinc-900);
+  color: #fff;
+}
+.file-item.active {
+  background-color: rgba(45, 212, 191, 0.1);
+  color: var(--color-teal);
 }
 

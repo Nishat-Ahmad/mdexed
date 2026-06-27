@@ -9,6 +9,45 @@ const localFileSystemApi = () => {
     name: 'local-fs-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        // Handle Image Upload
+        if (req.url === '/api/upload-image' && req.method === 'POST') {
+          try {
+            const folderName = decodeURIComponent(req.headers['x-folder-name']);
+            const fileName = decodeURIComponent(req.headers['x-file-name']);
+            
+            if (!folderName || !fileName) {
+              res.statusCode = 400;
+              res.end('Missing X-Folder-Name or X-File-Name headers');
+              return;
+            }
+            
+            const targetDir = path.resolve(process.cwd(), 'src', 'content', 'blog', folderName);
+            if (!fs.existsSync(targetDir)) {
+              fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            const targetFilePath = path.join(targetDir, fileName);
+            const writeStream = fs.createWriteStream(targetFilePath);
+            
+            req.pipe(writeStream);
+            
+            req.on('end', () => {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, message: `Saved to ${folderName}/${fileName}` }));
+            });
+            
+            writeStream.on('error', (err) => {
+              res.statusCode = 500;
+              res.end(`Write error: ${err.message}`);
+            });
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(`Server error: ${err.message}`);
+          }
+          return;
+        }
+
         // Handle Save
         if (req.url === '/api/save' && req.method === 'POST') {
           let body = '';
@@ -135,28 +174,57 @@ const localFileSystemApi = () => {
           
           const fileData = [];
           const items = fs.readdirSync(blogDir, { withFileTypes: true });
+          const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
           
           items.forEach(item => {
             if (item.isDirectory()) {
               const subDir = path.join(blogDir, item.name);
-              const subItems = fs.readdirSync(subDir).filter(f => f.endsWith('.md'));
-              if (subItems.length === 0) {
-                fileData.push({ isEmptyFolder: true, name: item.name });
+              const subItems = fs.readdirSync(subDir);
+              const mdFiles = subItems.filter(f => f.endsWith('.md'));
+              const imgFiles = subItems.filter(f => imageExtensions.includes(path.extname(f).toLowerCase()));
+              
+              if (mdFiles.length === 0) {
+                fileData.push({ isEmptyFolder: true, name: item.name, images: imgFiles });
               } else {
-                subItems.forEach(f => {
+                mdFiles.forEach(f => {
                   const content = fs.readFileSync(path.join(subDir, f), 'utf-8');
-                  fileData.push({ filename: item.name, content }); // slug is the folder name
+                  fileData.push({ filename: item.name, content, images: imgFiles }); // slug is the folder name
                 });
               }
             } else if (item.isFile() && item.name.endsWith('.md')) {
               const content = fs.readFileSync(path.join(blogDir, item.name), 'utf-8');
-              fileData.push({ filename: item.name.replace('.md', ''), content });
+              fileData.push({ filename: item.name.replace('.md', ''), content, images: [] });
             }
           });
           
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(fileData));
+          return;
+        }
+
+        // Handle Image Delete
+        if (req.url === '/api/delete-image' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk.toString(); });
+          req.on('end', () => {
+            try {
+              const { folderName, imageName } = JSON.parse(body);
+              const imgPath = path.resolve(process.cwd(), 'src', 'content', 'blog', folderName, imageName);
+              if (fs.existsSync(imgPath) && imgPath.startsWith(path.resolve(process.cwd(), 'src', 'content', 'blog'))) {
+                fs.rmSync(imgPath, { force: true });
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true }));
+              } else {
+                res.statusCode = 404;
+                res.end('Image not found');
+              }
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(err.message);
+            }
+          });
           return;
         }
 

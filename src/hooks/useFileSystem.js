@@ -29,6 +29,7 @@ export function useFileSystem() {
   const [activeFileId, setActiveFileId] = useState('default-1');
   const [emptyFolders, setEmptyFolders] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'unsaved', 'saving', 'error'
+  const [folderImages, setFolderImages] = useState({});
   
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
   
@@ -50,8 +51,7 @@ export function useFileSystem() {
   
   const prevActiveFileIdRef = useRef(activeFileId);
 
-  // Load files from disk initially
-  useEffect(() => {
+  const loadFiles = useCallback(() => {
     fetch('/api/files')
       .then(res => res.json())
       .then(data => {
@@ -59,27 +59,41 @@ export function useFileSystem() {
           const loadedFiles = [];
           const loadedEmptyFolders = [];
           const savedMap = {};
+          const loadedFolderImages = {};
           data.forEach(d => {
             if (d.isEmptyFolder) {
               loadedEmptyFolders.push(d.name);
+              loadedFolderImages[d.name] = d.images || [];
             } else {
               const parsed = parseMarkdownFile(d.content);
               loadedFiles.push({ id: d.filename, frontmatter: parsed.frontmatter, body: parsed.body });
               savedMap[d.filename] = d.content;
+              loadedFolderImages[d.filename] = d.images || [];
             }
           });
           lastSavedContentRef.current = savedMap;
+          setFolderImages(loadedFolderImages);
           if (loadedFiles.length > 0) {
             setFiles(loadedFiles);
-            // Don't auto-save during initial load, so set prevActiveFileIdRef immediately
-            prevActiveFileIdRef.current = loadedFiles[0].id;
-            setActiveFileId(loadedFiles[0].id);
+            setActiveFileId(currentId => {
+              if (currentId && loadedFiles.some(f => f.id === currentId)) {
+                prevActiveFileIdRef.current = currentId;
+                return currentId;
+              }
+              prevActiveFileIdRef.current = loadedFiles[0].id;
+              return loadedFiles[0].id;
+            });
           }
           setEmptyFolders(loadedEmptyFolders);
         }
       })
       .catch(err => console.error("Could not load local files", err));
   }, []);
+
+  // Load files from disk initially
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
 
   const saveFileContent = useCallback(async (slug, content) => {
     setSaveStatus('saving');
@@ -270,6 +284,7 @@ export function useFileSystem() {
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
-    deleteItem, renameItem, handleSaveToDisk, saveStatus
+    deleteItem, renameItem, handleSaveToDisk, saveStatus,
+    folderImages, loadFiles
   };
 }

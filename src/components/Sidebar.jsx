@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FileText, Plus, FolderOpen, Folder, FolderPlus, ChevronDown, Upload, Trash2, Edit2 } from 'lucide-react';
+import { FileText, Plus, FolderOpen, Folder, FolderPlus, ChevronDown, Upload, Trash2, Edit2, Check, Loader2, AlertCircle } from 'lucide-react';
 import MetadataForm from './MetadataForm';
 
 export default function Sidebar({ width, fsManager, headings, activeHeadingId }) {
@@ -10,7 +10,7 @@ export default function Sidebar({ width, fsManager, headings, activeHeadingId })
   const { 
     files, emptyFolders, activeFileId, setActiveFileId, activeFile, 
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder, 
-    deleteItem, renameItem, handleSaveToDisk 
+    deleteItem, renameItem, handleSaveToDisk, saveStatus 
   } = fsManager;
 
   const toggleFolder = (folderName) => {
@@ -222,7 +222,38 @@ export default function Sidebar({ width, fsManager, headings, activeHeadingId })
       </div>
       
       <div className="actions" style={{ padding: '1.5rem', borderTop: '1px solid var(--color-zinc-800)' }}>
-        <button className="btn" onClick={handleSaveToDisk}>Save to Disk</button>
+        {(() => {
+          switch (saveStatus) {
+            case 'saving':
+              return (
+                <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'not-allowed', opacity: 0.8 }} disabled>
+                  <Loader2 size={16} className="animate-spin" style={{ marginRight: '0.5rem' }} />
+                  Saving...
+                </button>
+              );
+            case 'saved':
+              return (
+                <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.9 }} onClick={handleSaveToDisk}>
+                  <Check size={16} style={{ color: 'var(--color-teal)', marginRight: '0.5rem' }} />
+                  Saved to Disk
+                </button>
+              );
+            case 'error':
+              return (
+                <button className="btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ef4444', color: '#fff' }} onClick={handleSaveToDisk}>
+                  <AlertCircle size={16} style={{ marginRight: '0.5rem' }} />
+                  Save Failed (Retry)
+                </button>
+              );
+            case 'unsaved':
+            default:
+              return (
+                <button className="btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleSaveToDisk}>
+                  Save to Disk
+                </button>
+              );
+          }
+        })()}
       </div>
     </div>
   );

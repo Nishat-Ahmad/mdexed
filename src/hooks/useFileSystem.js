@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { generateMarkdown, parseMarkdownFile } from '../utils/markdown';
 
 const DEFAULT_BODY = `
@@ -28,9 +28,29 @@ export function useFileSystem() {
   ]);
   const [activeFileId, setActiveFileId] = useState('default-1');
   const [emptyFolders, setEmptyFolders] = useState([]);
+  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'unsaved', 'saving', 'error'
   
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
+  
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
+  const lastSavedContentRef = useRef({
+    'default-1': generateMarkdown(
+      {
+        title: "Building Scalable RAG Architectures",
+        date: "Sep 05, 2025",
+        readTime: "8 min read",
+        summary: "An in-depth guide to building scalable, production-ready retrieval-augmented generation pipelines.",
+        tags: ["AI", "Vector DBs", "FastAPI"]
+      },
+      DEFAULT_BODY
+    )
+  });
+  
+  const prevActiveFileIdRef = useRef(activeFileId);
+
+  // Load files from disk initially
   useEffect(() => {
     fetch('/api/files')
       .then(res => res.json())
@@ -38,16 +58,21 @@ export function useFileSystem() {
         if (data && data.length > 0) {
           const loadedFiles = [];
           const loadedEmptyFolders = [];
+          const savedMap = {};
           data.forEach(d => {
             if (d.isEmptyFolder) {
               loadedEmptyFolders.push(d.name);
             } else {
               const parsed = parseMarkdownFile(d.content);
               loadedFiles.push({ id: d.filename, frontmatter: parsed.frontmatter, body: parsed.body });
+              savedMap[d.filename] = d.content;
             }
           });
+          lastSavedContentRef.current = savedMap;
           if (loadedFiles.length > 0) {
             setFiles(loadedFiles);
+            // Don't auto-save during initial load, so set prevActiveFileIdRef immediately
+            prevActiveFileIdRef.current = loadedFiles[0].id;
             setActiveFileId(loadedFiles[0].id);
           }
           setEmptyFolders(loadedEmptyFolders);
@@ -55,6 +80,76 @@ export function useFileSystem() {
       })
       .catch(err => console.error("Could not load local files", err));
   }, []);
+
+  const saveFileContent = useCallback(async (slug, content) => {
+    setSaveStatus('saving');
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, content })
+      });
+      if (res.ok) {
+        lastSavedContentRef.current[slug] = content;
+        if (activeFileId === slug) {
+          setSaveStatus('saved');
+        }
+        return true;
+      } else {
+        setSaveStatus('error');
+        return false;
+      }
+    } catch (e) {
+      console.error("Autosave error", e);
+      setSaveStatus('error');
+      return false;
+    }
+  }, [activeFileId]);
+
+  // Debounced Autosave Effect
+  useEffect(() => {
+    if (!activeFile) return;
+
+    const currentContent = generateMarkdown(activeFile.frontmatter, activeFile.body);
+    const lastSaved = lastSavedContentRef.current[activeFile.id];
+
+    // If activeFileId changed, save the previous file immediately if it was unsaved
+    if (prevActiveFileIdRef.current !== activeFile.id) {
+      const prevId = prevActiveFileIdRef.current;
+      const prevFile = filesRef.current.find(f => f.id === prevId);
+      if (prevFile) {
+        const prevContent = generateMarkdown(prevFile.frontmatter, prevFile.body);
+        const prevLastSaved = lastSavedContentRef.current[prevId];
+        if (prevContent !== prevLastSaved) {
+          saveFileContent(prevId, prevContent);
+        }
+      }
+      prevActiveFileIdRef.current = activeFile.id;
+      
+      // Update status for the new file
+      if (currentContent === lastSaved) {
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('unsaved');
+      }
+      return;
+    }
+
+    // If content is same as last saved, it's saved
+    if (currentContent === lastSaved) {
+      setSaveStatus('saved');
+      return;
+    }
+
+    // Content is different, mark as unsaved and set up a debounce timer
+    setSaveStatus('unsaved');
+
+    const delayDebounceFn = setTimeout(() => {
+      saveFileContent(activeFile.id, currentContent);
+    }, 1500); // 1.5 seconds debounce
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [activeFileId, activeFile, saveFileContent]);
 
   const updateActiveFile = (updates) => {
     setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, ...updates } : f));
@@ -66,7 +161,7 @@ export function useFileSystem() {
     slug = slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     if (files.find(f => f.id === slug) || emptyFolders.includes(slug)) {
        alert("That name already exists!"); return;
-    }
+     }
     const newFile = {
       id: slug,
       frontmatter: {
@@ -119,6 +214,7 @@ export function useFileSystem() {
       if (res.ok) {
         if (isFile) {
            setFiles(prev => prev.filter(f => f.id !== targetId));
+           delete lastSavedContentRef.current[targetId];
            if (activeFileId === targetId) {
              const remaining = files.filter(f => f.id !== targetId);
              setActiveFileId(remaining.length > 0 ? remaining[0].id : null);
@@ -147,6 +243,14 @@ export function useFileSystem() {
       if (res.ok) {
         if (isFile) {
            setFiles(prev => prev.map(f => f.id === oldName ? { ...f, id: cleanName } : f));
+           
+           // Update refs for renaming
+           lastSavedContentRef.current[cleanName] = lastSavedContentRef.current[oldName];
+           delete lastSavedContentRef.current[oldName];
+           if (prevActiveFileIdRef.current === oldName) {
+             prevActiveFileIdRef.current = cleanName;
+           }
+
            if (activeFileId === oldName) setActiveFileId(cleanName);
         } else {
            setEmptyFolders(prev => prev.map(f => f === oldName ? cleanName : f));
@@ -157,22 +261,15 @@ export function useFileSystem() {
   };
 
   const handleSaveToDisk = async () => {
+    if (!activeFile) return;
     const slug = activeFile.id;
-    const fullMarkdown = generateMarkdown(activeFile.frontmatter, activeFile.body);
-    try {
-      const res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, content: fullMarkdown })
-      });
-      if (res.ok) { alert(`Saved successfully to src/content/blog/${slug}/${slug}.md`); } 
-      else { alert('Failed to save file'); }
-    } catch (e) { alert("Error saving file: " + e.message); }
+    const currentContent = generateMarkdown(activeFile.frontmatter, activeFile.body);
+    await saveFileContent(slug, currentContent);
   };
 
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
-    deleteItem, renameItem, handleSaveToDisk
+    deleteItem, renameItem, handleSaveToDisk, saveStatus
   };
 }

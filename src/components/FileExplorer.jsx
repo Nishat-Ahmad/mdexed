@@ -65,6 +65,7 @@ const buildExplorerTree = (files, emptyFolders, folderImages) => {
 
 export default function FileExplorer({ fsManager }) {
   const [collapsedFolders, setCollapsedFolders] = useState({});
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const [uploadTargetFolder, setUploadTargetFolder] = useState(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -82,6 +83,67 @@ export default function FileExplorer({ fsManager }) {
     folderImages,
     loadFiles
   } = fsManager;
+
+  // Auto-select folder when active file changes
+  React.useEffect(() => {
+    if (activeFileId) {
+      if (activeFileId.includes('/')) {
+        setSelectedFolder(activeFileId.split('/').slice(0, -1).join('/'));
+      } else {
+        setSelectedFolder(activeFileId);
+      }
+    }
+  }, [activeFileId]);
+
+  // Global paste handler to paste images directly into the selected folder
+  React.useEffect(() => {
+    const handlePaste = async (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        if (!activeEl.classList.contains('inputarea')) {
+          return;
+        }
+      }
+
+      if (!selectedFolder) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      let imageFile = null;
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          imageFile = item.getAsFile();
+          break;
+        }
+      }
+
+      if (!imageFile) return;
+
+      e.preventDefault();
+
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, '').substring(0, 14);
+      const defaultName = `pasted-image-${timestamp}.png`;
+      const fileName = prompt(`Paste clipboard image into folder "${selectedFolder}":\nEnter filename:`, defaultName);
+      if (!fileName) return;
+
+      const cleanFileName = fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.gif') || fileName.endsWith('.webp')
+        ? fileName
+        : `${fileName}.png`;
+
+      const success = await fsManager.uploadImage(selectedFolder, imageFile, cleanFileName);
+      if (success) {
+        alert(`Successfully pasted and saved "${cleanFileName}" inside "${selectedFolder}"`);
+      } else {
+        alert(`Failed to save pasted image in "${selectedFolder}"`);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [selectedFolder, fsManager]);
 
   const toggleFolder = (folderName) => {
     setCollapsedFolders(prev => ({ ...prev, [folderName]: !prev[folderName] }));
@@ -194,6 +256,7 @@ export default function FileExplorer({ fsManager }) {
 
       const isCollapsed = collapsedFolders[node.path];
       const images = folderImages[node.path] || [];
+      const isSelected = selectedFolder === node.path;
 
       const sortedChildren = [...node.children].sort((a, b) => {
         if (a.type === b.type) return a.name.localeCompare(b.name);
@@ -203,19 +266,53 @@ export default function FileExplorer({ fsManager }) {
       return (
         <div key={node.path} style={{ marginBottom: '0.25rem' }}>
           <div 
-            className="folder-row"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: `0.25rem 0.5rem 0.25rem ${level * 16 + 24}px`, cursor: 'pointer' }}
-            onClick={() => toggleFolder(node.path)}
+            className={`folder-row ${isSelected ? 'selected' : ''}`}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.375rem', 
+              color: 'var(--color-zinc-300)', 
+              fontSize: '0.8125rem', 
+              padding: `0.25rem 0.5rem 0.25rem ${level * 16 + 24}px`, 
+              cursor: 'pointer',
+              borderLeft: isSelected ? '2px solid var(--color-teal)' : '2px solid transparent',
+              backgroundColor: isSelected ? 'rgba(45, 212, 191, 0.04)' : 'transparent',
+              transition: 'background-color 0.15s ease, border-left 0.15s ease'
+            }}
+            onClick={(e) => {
+              toggleFolder(node.path);
+              setSelectedFolder(node.path);
+            }}
           >
             <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
-              <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
+              <ChevronDown size={12} style={{ color: isSelected ? 'var(--color-teal)' : 'var(--color-zinc-500)' }} /> 
             </div>
             {isCollapsed ? (
-               <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
+               <Folder size={12} style={{ color: isSelected ? 'var(--color-teal)' : 'var(--color-zinc-400)' }} />
             ) : (
-               <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
+               <FolderOpen size={12} style={{ color: isSelected ? 'var(--color-teal)' : 'var(--color-zinc-400)' }} />
             )}
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? 600 : 400, color: isSelected ? '#fff' : 'inherit' }}>
+              {node.name}
+            </span>
+            {isSelected && (
+              <span 
+                style={{ 
+                  fontSize: '0.625rem', 
+                  padding: '0.05rem 0.25rem', 
+                  borderRadius: '0.25rem', 
+                  backgroundColor: 'rgba(45, 212, 191, 0.15)', 
+                  color: 'var(--color-teal)', 
+                  marginRight: '0.5rem', 
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                  flexShrink: 0
+                }}
+                title="Press Ctrl+V to paste images directly into this folder"
+              >
+                Paste Target
+              </span>
+            )}
             <Plus
               size={12}
               className="action-btn btn-create"
@@ -337,6 +434,13 @@ export default function FileExplorer({ fsManager }) {
         
         {!collapsedFolders['root'] && renderNode(tree)}
       </div>
+
+      {selectedFolder && (
+        <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--color-zinc-800)', fontSize: '0.7rem', color: 'var(--color-zinc-500)', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0e0e10' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-teal)' }} />
+          <span>Active target: <strong>{selectedFolder}</strong>. Press <strong>Ctrl+V</strong> to paste image.</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -89,6 +89,27 @@ function App() {
     };
   }, [headings, fsManager.activeFile?.body]);
 
+  const handleImagePaste = async (file) => {
+    if (!fsManager.activeFile) return null;
+    const slug = fsManager.activeFile.id;
+    const targetFolder = slug.includes('/') ? slug.split('/').slice(0, -1).join('/') : slug;
+    
+    const timestamp = new Date().toISOString().replace(/[-:.]/g, '').substring(0, 14);
+    const defaultName = `pasted-image-${timestamp}.png`;
+    const fileName = prompt(`Paste clipboard image into post folder "${targetFolder}":\nEnter filename:`, defaultName);
+    if (!fileName) return null;
+
+    const cleanFileName = fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.gif') || fileName.endsWith('.webp')
+      ? fileName
+      : `${fileName}.png`;
+
+    const success = await fsManager.uploadImage(targetFolder, file, cleanFileName);
+    if (success) {
+      return cleanFileName;
+    }
+    return null;
+  };
+
   return (
     <div className="app-container">
       <Sidebar 
@@ -103,7 +124,11 @@ function App() {
       {/* MIDDLE PANE - EDITOR */}
       <div style={{ width: `${editorWidth}%`, flex: 'none', display: 'flex', flexDirection: 'column' }}>
         {fsManager.activeFile && (
-           <Editor value={fsManager.activeFile.body} onChange={(body) => fsManager.updateActiveFile({ body })} />
+           <Editor 
+             value={fsManager.activeFile.body} 
+             onChange={(body) => fsManager.updateActiveFile({ body })} 
+             onImagePaste={handleImagePaste} 
+           />
         )}
       </div>
       

@@ -297,10 +297,32 @@ export function useFileSystem() {
     await saveFileContent(slug, currentContent);
   };
 
+  const uploadImage = async (folderName, file, fileName) => {
+    try {
+      const res = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type,
+          'X-Folder-Name': encodeURIComponent(folderName),
+          'X-File-Name': encodeURIComponent(fileName)
+        },
+        body: file
+      });
+      if (res.ok) {
+        await loadFiles();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles
+    folderImages, loadFiles, uploadImage
   };
 }

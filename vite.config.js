@@ -3,6 +3,64 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 
+// Custom helper to scan directories recursively for markdown files and empty folders
+const getFilesRecursively = (dir, baseDir) => {
+  let results = [];
+  if (!fs.existsSync(dir)) return results;
+  const list = fs.readdirSync(dir, { withFileTypes: true });
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
+
+  list.forEach(item => {
+    const fullPath = path.join(dir, item.name);
+    if (item.isDirectory()) {
+      const subResults = getFilesRecursively(fullPath, baseDir);
+      results = results.concat(subResults);
+      
+      const hasMd = subResults.some(r => !r.isEmptyFolder);
+      if (!hasMd) {
+        const subItems = fs.readdirSync(fullPath);
+        const imgFiles = subItems.filter(f => imageExtensions.includes(path.extname(f).toLowerCase()));
+        const relativeName = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+        results.push({ isEmptyFolder: true, name: relativeName, images: imgFiles });
+      }
+    } else if (item.isFile() && item.name.endsWith('.md')) {
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+      
+      let slug = relativePath.substring(0, relativePath.length - 3);
+      const parts = slug.split('/');
+      if (parts.length >= 2 && parts[parts.length - 1] === parts[parts.length - 2]) {
+        parts.pop();
+        slug = parts.join('/');
+      }
+      
+      const parentDir = path.dirname(fullPath);
+      const subItems = fs.readdirSync(parentDir);
+      const imgFiles = subItems.filter(f => imageExtensions.includes(path.extname(f).toLowerCase()));
+      
+      results.push({ filename: slug, content, images: imgFiles });
+    }
+  });
+  
+  return results;
+};
+
+// Custom helper to search for an image file recursively
+const findImageRecursively = (dir, targetFileName) => {
+  if (!fs.existsSync(dir)) return null;
+  const list = fs.readdirSync(dir, { withFileTypes: true });
+  for (const item of list) {
+    const fullPath = path.join(dir, item.name);
+    if (item.isDirectory()) {
+      const found = findImageRecursively(fullPath, targetFileName);
+      if (found) return found;
+    } else if (item.isFile() && item.name.toLowerCase() === targetFileName.toLowerCase()) {
+      return fullPath;
+    }
+  }
+  return null;
+};
+
 // Custom Vite plugin to handle local file system saving/loading
 const localFileSystemApi = () => {
   return {
@@ -57,15 +115,25 @@ const localFileSystemApi = () => {
           req.on('end', () => {
             try {
               const { slug, content } = JSON.parse(body);
-              // Save to src/content/blog/slug/slug.md
-              const dir = path.resolve(process.cwd(), 'src', 'content', 'blog', slug);
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              
+              let targetPath;
+              if (slug.includes('/')) {
+                // Save directly as a flat file in the parent folder
+                targetPath = path.resolve(blogDir, `${slug}.md`);
+              } else {
+                // Save using folder-per-post architecture
+                targetPath = path.resolve(blogDir, slug, `${slug}.md`);
+              }
+              
+              const dir = path.dirname(targetPath);
               if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
               }
-              fs.writeFileSync(path.join(dir, `${slug}.md`), content);
+              fs.writeFileSync(targetPath, content);
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true, message: `Saved to src/content/blog/${slug}/${slug}.md` }));
+              res.end(JSON.stringify({ success: true, message: `Saved to src/content/blog/${path.relative(blogDir, targetPath).replace(/\\/g, '/')}` }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ error: err.message }));
@@ -107,12 +175,13 @@ const localFileSystemApi = () => {
           req.on('end', () => {
             try {
               const { target } = JSON.parse(body);
-              const dir = path.resolve(process.cwd(), 'src', 'content', 'blog', target);
-              const flatFile = path.resolve(process.cwd(), 'src', 'content', 'blog', `${target}.md`);
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              const dir = path.resolve(blogDir, target);
+              const flatFile = path.resolve(blogDir, `${target}.md`);
               
-              if (fs.existsSync(dir) && fs.statSync(dir).isDirectory() && dir.startsWith(path.resolve(process.cwd(), 'src', 'content', 'blog'))) {
+              if (fs.existsSync(dir) && fs.statSync(dir).isDirectory() && dir.startsWith(blogDir)) {
                 fs.rmSync(dir, { recursive: true, force: true });
-              } else if (fs.existsSync(flatFile) && flatFile.startsWith(path.resolve(process.cwd(), 'src', 'content', 'blog'))) {
+              } else if (fs.existsSync(flatFile) && flatFile.startsWith(blogDir)) {
                 fs.rmSync(flatFile, { force: true });
               }
               res.statusCode = 200;
@@ -145,8 +214,10 @@ const localFileSystemApi = () => {
                 fs.renameSync(oldDir, newDir);
                 
                 // If it contains a markdown file matching the old folder name, rename that too
-                const oldMd = path.join(newDir, `${oldName}.md`);
-                const newMd = path.join(newDir, `${newName}.md`);
+                const oldMdName = `${path.basename(oldName)}.md`;
+                const newMdName = `${path.basename(newName)}.md`;
+                const oldMd = path.join(newDir, oldMdName);
+                const newMd = path.join(newDir, newMdName);
                 if (fs.existsSync(oldMd)) {
                   fs.renameSync(oldMd, newMd);
                 }
@@ -172,30 +243,7 @@ const localFileSystemApi = () => {
              fs.mkdirSync(blogDir, { recursive: true });
           }
           
-          const fileData = [];
-          const items = fs.readdirSync(blogDir, { withFileTypes: true });
-          const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
-          
-          items.forEach(item => {
-            if (item.isDirectory()) {
-              const subDir = path.join(blogDir, item.name);
-              const subItems = fs.readdirSync(subDir);
-              const mdFiles = subItems.filter(f => f.endsWith('.md'));
-              const imgFiles = subItems.filter(f => imageExtensions.includes(path.extname(f).toLowerCase()));
-              
-              if (mdFiles.length === 0) {
-                fileData.push({ isEmptyFolder: true, name: item.name, images: imgFiles });
-              } else {
-                mdFiles.forEach(f => {
-                  const content = fs.readFileSync(path.join(subDir, f), 'utf-8');
-                  fileData.push({ filename: item.name, content, images: imgFiles }); // slug is the folder name
-                });
-              }
-            } else if (item.isFile() && item.name.endsWith('.md')) {
-              const content = fs.readFileSync(path.join(blogDir, item.name), 'utf-8');
-              fileData.push({ filename: item.name.replace('.md', ''), content, images: [] });
-            }
-          });
+          const fileData = getFilesRecursively(blogDir, blogDir);
           
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
@@ -239,26 +287,11 @@ const localFileSystemApi = () => {
           
           let foundPath = null;
           
-          // 1. Search dynamically inside subfolders of src/content/blog
           if (fs.existsSync(blogDir)) {
-             const items = fs.readdirSync(blogDir, { withFileTypes: true });
-             for (const item of items) {
-               if (item.isDirectory()) {
-                  const checkPath = path.join(blogDir, item.name, fileName);
-                  if (fs.existsSync(checkPath)) {
-                     foundPath = checkPath;
-                     break;
-                  }
-               }
-             }
-             // 2. Fallback to flat blog directory
-             if (!foundPath) {
-               const flatPath = path.join(blogDir, fileName);
-               if (fs.existsSync(flatPath)) foundPath = flatPath;
-             }
+            foundPath = findImageRecursively(blogDir, fileName);
           }
           
-          // 3. Fallback to project root
+          // Fallback to project root
           if (!foundPath) {
              const rootPath = path.join(process.cwd(), decodedUrl);
              if (fs.existsSync(rootPath) && fs.statSync(rootPath).isFile()) {

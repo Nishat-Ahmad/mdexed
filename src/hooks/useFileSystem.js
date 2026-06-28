@@ -169,15 +169,16 @@ export function useFileSystem() {
     setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, ...updates } : f));
   };
 
-  const createNewFile = () => {
+  const createNewFile = (parentFolder = '') => {
     let slug = prompt("Enter post URL slug (e.g., my-new-post):");
     if (!slug) return;
     slug = slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    if (files.find(f => f.id === slug) || emptyFolders.includes(slug)) {
+    const fullSlug = parentFolder ? `${parentFolder}/${slug}` : slug;
+    if (files.find(f => f.id === fullSlug) || emptyFolders.includes(fullSlug)) {
        alert("That name already exists!"); return;
      }
     const newFile = {
-      id: slug,
+      id: fullSlug,
       frontmatter: {
         title: slug.replace(/-/g, ' '),
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
@@ -203,15 +204,23 @@ export function useFileSystem() {
     reader.readAsText(file);
   };
 
-  const createNewFolder = async () => {
+  const createNewFolder = async (parentFolder = '') => {
     const folderName = prompt("Enter new folder name:");
     if (!folderName) return;
-    setEmptyFolders(prev => [...prev, folderName]);
+    const cleanFolderName = folderName.toLowerCase().replace(/[^a-z0-9/]+/g, '-').replace(/(^-|-$)+/g, '');
+    const fullFolderName = parentFolder ? `${parentFolder}/${cleanFolderName}` : cleanFolderName;
+    
+    if (emptyFolders.includes(fullFolderName) || files.some(f => f.id.startsWith(fullFolderName + '/'))) {
+      alert("A folder with that name already exists!");
+      return;
+    }
+    
+    setEmptyFolders(prev => [...prev, fullFolderName]);
     try {
       await fetch('/api/mkdir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderName })
+        body: JSON.stringify({ folderName: fullFolderName })
       });
     } catch (e) { console.error(e); }
   };
@@ -242,9 +251,16 @@ export function useFileSystem() {
 
   const renameItem = async (e, oldName, isFile) => {
     e.stopPropagation();
-    const newName = prompt("Enter new name:", oldName);
-    if (!newName || newName === oldName) return;
-    const cleanName = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const parts = oldName.split('/');
+    const currentBaseName = parts[parts.length - 1];
+    
+    const newBaseName = prompt("Enter new name:", currentBaseName);
+    if (!newBaseName || newBaseName === currentBaseName) return;
+    
+    const cleanBaseName = newBaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const parentPath = parts.slice(0, -1).join('/');
+    const cleanName = parentPath ? `${parentPath}/${cleanBaseName}` : cleanBaseName;
+    
     if (files.find(f => f.id === cleanName) || emptyFolders.includes(cleanName)) {
       alert("A folder with that name already exists!"); return null;
     }

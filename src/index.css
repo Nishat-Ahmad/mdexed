@@ -340,17 +340,40 @@ body {
   color: var(--color-teal);
 }
 
-.hover-trash {
-  opacity: 0.2;
-  transition: opacity 0.2s, color 0.2s;
+/* File Explorer Action Buttons */
+.action-btn {
+  opacity: 0;
+  color: var(--color-zinc-400);
+  transition: opacity 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  transform: scale(0.9);
+  cursor: pointer;
 }
-.hover-trash:hover {
+
+.folder-row:hover .action-btn,
+.file-item:hover .action-btn {
+  opacity: 0.5;
+  transform: scale(1);
+}
+
+.action-btn:hover {
   opacity: 1 !important;
-  color: #ef4444 !important;
+  transform: scale(1.1);
 }
-.folder-row:hover .hover-trash,
-.file-item:hover .hover-trash {
-  opacity: 0.6;
+
+.action-btn.btn-create:hover {
+  color: var(--color-teal) !important;
+}
+
+.action-btn.btn-upload:hover {
+  color: #a78bfa !important; /* premium purple */
+}
+
+.action-btn.btn-edit:hover {
+  color: #fbbf24 !important; /* warm amber */
+}
+
+.action-btn.btn-danger:hover {
+  color: #f87171 !important; /* soft danger red */
 }
 
 @keyframes spin {

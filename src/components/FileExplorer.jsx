@@ -1,6 +1,68 @@
 import React, { useState, useRef } from 'react';
 import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus } from 'lucide-react';
 
+const buildExplorerTree = (files, emptyFolders, folderImages) => {
+  const root = { name: 'root', path: '', type: 'folder', children: [], images: [] };
+
+  const getOrCreateFolder = (pathParts) => {
+    let current = root;
+    let currentPath = '';
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      let nextNode = current.children.find(c => c.name === part && c.type === 'folder');
+      if (!nextNode) {
+        nextNode = {
+          name: part,
+          path: currentPath,
+          type: 'folder',
+          children: [],
+          images: folderImages[currentPath] || []
+        };
+        current.children.push(nextNode);
+      }
+      current = nextNode;
+    }
+    return current;
+  };
+
+  // Add empty folders
+  emptyFolders.forEach(folderPath => {
+    const parts = folderPath.split('/');
+    getOrCreateFolder(parts);
+  });
+
+  // Add files
+  files.forEach(file => {
+    if (file.id.includes('/')) {
+      // Nested files go directly inside their parent folder
+      const parts = file.id.split('/');
+      const parentParts = parts.slice(0, -1);
+      const fileName = `${parts[parts.length - 1]}.md`;
+      
+      const parentFolderNode = getOrCreateFolder(parentParts);
+      parentFolderNode.children.push({
+        name: fileName,
+        path: file.id,
+        type: 'file',
+        file: file
+      });
+    } else {
+      // Top-level files are folder-per-post
+      const postFolderNode = getOrCreateFolder([file.id]);
+      const fileName = `${file.id}.md`;
+      postFolderNode.children.push({
+        name: fileName,
+        path: file.id,
+        type: 'file',
+        file: file
+      });
+    }
+  });
+
+  return root;
+};
+
 export default function FileExplorer({ fsManager }) {
   const [collapsedFolders, setCollapsedFolders] = useState({});
   const [uploadTargetFolder, setUploadTargetFolder] = useState(null);
@@ -92,6 +154,137 @@ export default function FileExplorer({ fsManager }) {
     }
   };
 
+  const tree = buildExplorerTree(files, emptyFolders, folderImages);
+
+  const renderNode = (node, level = 0) => {
+    if (node.type === 'file') {
+      const isActive = node.path === activeFileId;
+      return (
+        <div 
+          key={node.path + '-file'}
+          onClick={() => setActiveFileId(node.path)} 
+          className={`file-item ${isActive ? 'active' : ''}`}
+          style={{ paddingLeft: `${level * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center' }}
+        >
+          <FileText size={14} style={{ minWidth: '14px', marginRight: '0.375rem' }} />
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+          <Edit2 
+            size={12} 
+            className="action-btn btn-edit"
+            onClick={(e) => handleRename(e, node.path, true)} 
+            style={{ marginRight: '0.25rem' }}
+          />
+          <Trash2 
+            size={12} 
+            className="action-btn btn-danger"
+            onClick={(e) => deleteItem(e, node.path, true)} 
+          />
+        </div>
+      );
+    }
+
+    if (node.type === 'folder') {
+      if (node.path === '') {
+        const sortedChildren = [...node.children].sort((a, b) => {
+          if (a.type === b.type) return a.name.localeCompare(b.name);
+          return a.type === 'folder' ? -1 : 1;
+        });
+        return sortedChildren.map(child => renderNode(child, level));
+      }
+
+      const isCollapsed = collapsedFolders[node.path];
+      const images = folderImages[node.path] || [];
+
+      const sortedChildren = [...node.children].sort((a, b) => {
+        if (a.type === b.type) return a.name.localeCompare(b.name);
+        return a.type === 'folder' ? -1 : 1;
+      });
+
+      return (
+        <div key={node.path} style={{ marginBottom: '0.25rem' }}>
+          <div 
+            className="folder-row"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: `0.25rem 0.5rem 0.25rem ${level * 16 + 24}px`, cursor: 'pointer' }}
+            onClick={() => toggleFolder(node.path)}
+          >
+            <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+              <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
+            </div>
+            {isCollapsed ? (
+               <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
+            ) : (
+               <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
+            )}
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+            <Plus
+              size={12}
+              className="action-btn btn-create"
+              onClick={(e) => {
+                e.stopPropagation();
+                createNewFile(node.path);
+              }}
+              style={{ marginRight: '0.25rem' }}
+              title="Create Markdown under this folder"
+            />
+            <FolderPlus
+              size={12}
+              className="action-btn btn-create"
+              onClick={(e) => {
+                e.stopPropagation();
+                createNewFolder(node.path);
+              }}
+              style={{ marginRight: '0.25rem' }}
+              title="Create subfolder under this folder"
+            />
+            <Image
+              size={12}
+              className="action-btn btn-upload"
+              onClick={(e) => handleImageUploadClick(e, node.path)}
+              style={{ marginRight: '0.25rem' }}
+              title="Upload Image"
+            />
+            <Edit2 
+              size={12} 
+              className="action-btn btn-edit"
+              onClick={(e) => handleRename(e, node.path, false)} 
+              style={{ marginRight: '0.25rem' }}
+            />
+            <Trash2 
+              size={12} 
+              className="action-btn btn-danger"
+              onClick={(e) => deleteItem(e, node.path, false)} 
+            />
+          </div>
+
+          {!isCollapsed && (
+            <div>
+              {/* Render subfolders & files */}
+              {sortedChildren.map(child => renderNode(child, level + 1))}
+              
+              {/* Render images in this folder */}
+              {images.map(img => (
+                <div 
+                  key={node.path + '/' + img} 
+                  className="file-item"
+                  style={{ paddingLeft: `${(level + 1) * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'default' }}
+                >
+                  <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img}</span>
+                  <Trash2 
+                    size={12} 
+                    className="action-btn btn-danger"
+                    onClick={(e) => handleDeleteImage(e, node.path, img)} 
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '1.25rem 1rem', borderBottom: '1px solid var(--color-zinc-800)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -117,10 +310,10 @@ export default function FileExplorer({ fsManager }) {
           <button onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="Open File">
             <Upload size={16} />
           </button>
-          <button onClick={createNewFolder} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New Folder">
+          <button onClick={() => createNewFolder('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New Folder">
             <FolderPlus size={16} />
           </button>
-          <button onClick={createNewFile} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
+          <button onClick={() => createNewFile('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
             <Plus size={16} />
           </button>
         </div>
@@ -142,153 +335,7 @@ export default function FileExplorer({ fsManager }) {
           src/content/blog
         </div>
         
-        {/* Render Empty Folders */}
-        {!collapsedFolders['root'] && emptyFolders.map(folderName => {
-          const isCollapsed = collapsedFolders[folderName];
-          const images = folderImages[folderName] || [];
-          return (
-            <div key={folderName} style={{ marginBottom: '0.5rem' }}>
-              <div 
-                className="folder-row"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: '0.25rem 0.5rem 0.25rem 1.5rem', cursor: 'pointer' }}
-                onClick={() => toggleFolder(folderName)}
-              >
-                <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
-                  <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
-                </div>
-                {isCollapsed ? (
-                   <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
-                ) : (
-                   <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
-                )}
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folderName}</span>
-                <Image
-                  size={12}
-                  className="hover-trash"
-                  onClick={(e) => handleImageUploadClick(e, folderName)}
-                  style={{ marginRight: '0.25rem' }}
-                  title="Upload Image"
-                />
-                <Edit2 
-                  size={12} 
-                  className="hover-trash"
-                  onClick={(e) => handleRename(e, folderName, false)} 
-                  style={{ marginRight: '0.25rem' }}
-                />
-                <Trash2 
-                  size={12} 
-                  className="hover-trash"
-                  onClick={(e) => deleteItem(e, folderName, false)} 
-                />
-              </div>
-
-              {/* Render folder images */}
-              {!isCollapsed && images.map(img => (
-                <div 
-                  key={img} 
-                  className="file-item"
-                  style={{ paddingLeft: '2.75rem', marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'default' }}
-                >
-                  <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img}</span>
-                  <Trash2 
-                    size={12} 
-                    className="hover-trash"
-                    onClick={(e) => handleDeleteImage(e, folderName, img)} 
-                  />
-                </div>
-              ))}
-            </div>
-          );
-        })}
-        
-        {/* Render Files (and their folders) */}
-        {!collapsedFolders['root'] && files.map(f => {
-          const isActive = f.id === activeFileId;
-          const slug = f.id;
-          const isCollapsed = collapsedFolders[slug];
-          const images = folderImages[slug] || [];
-          
-          return (
-            <div key={f.id} style={{ marginBottom: '0.5rem' }}>
-              {/* Nested Post Folder */}
-              <div 
-                className="folder-row"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-zinc-300)', fontSize: '0.8125rem', padding: '0.25rem 0.5rem 0.25rem 1.5rem', cursor: 'pointer' }}
-                onClick={() => toggleFolder(slug)}
-              >
-                <div style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
-                  <ChevronDown size={12} style={{ color: 'var(--color-zinc-500)' }} /> 
-                </div>
-                {isCollapsed ? (
-                   <Folder size={12} style={{ color: 'var(--color-zinc-400)' }} />
-                ) : (
-                   <FolderOpen size={12} style={{ color: 'var(--color-zinc-400)' }} />
-                )}
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slug}</span>
-                <Image
-                  size={12}
-                  className="hover-trash"
-                  onClick={(e) => handleImageUploadClick(e, slug)}
-                  style={{ marginRight: '0.25rem' }}
-                  title="Upload Image"
-                />
-                <Edit2 
-                  size={12} 
-                  className="hover-trash"
-                  onClick={(e) => handleRename(e, slug, true)} 
-                  style={{ marginRight: '0.25rem' }}
-                />
-                <Trash2 
-                  size={12} 
-                  className="hover-trash"
-                  onClick={(e) => deleteItem(e, slug, true)} 
-                />
-              </div>
-              
-              {/* Markdown File and Images */}
-              {!isCollapsed && (
-                <>
-                  <div 
-                    onClick={() => setActiveFileId(f.id)} 
-                    className={`file-item ${isActive ? 'active' : ''}`}
-                    style={{ paddingLeft: '2.75rem', marginTop: '0.125rem', display: 'flex', alignItems: 'center' }}
-                  >
-                    <FileText size={14} style={{ minWidth: '14px', marginRight: '0.375rem' }} />
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slug}.md</span>
-                    <Edit2 
-                      size={12} 
-                      className="hover-trash"
-                      onClick={(e) => handleRename(e, slug, true)} 
-                      style={{ marginRight: '0.25rem' }}
-                    />
-                    <Trash2 
-                      size={12} 
-                      className="hover-trash"
-                      onClick={(e) => deleteItem(e, slug, true)} 
-                    />
-                  </div>
-
-                  {images.map(img => (
-                    <div 
-                      key={img} 
-                      className="file-item"
-                      style={{ paddingLeft: '2.75rem', marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'default' }}
-                    >
-                      <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img}</span>
-                      <Trash2 
-                        size={12} 
-                        className="hover-trash"
-                        onClick={(e) => handleDeleteImage(e, slug, img)} 
-                      />
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          );
-        })}
+        {!collapsedFolders['root'] && renderNode(tree)}
       </div>
     </div>
   );

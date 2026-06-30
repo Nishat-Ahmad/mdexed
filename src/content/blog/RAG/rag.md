@@ -16,3 +16,4 @@ tags: ["RAG", "AI"]
 - **Retriever:** It takes prompt -> Translates them into queries -> searches the knowledge base for relevant result (usually done using vector search) -> Gathers top results and them to the LLM
 - **Use cases:** Legal and medical use cases, Uses specialized documents, Case files, journals, private data, Enables accurate, secure use, Supports precision and privacy needs.
 - We can run search engines as Retrievers, the internet aas the knowledge base, and use ai to summarize the information.
+![pasted-image-20260630T06072.png](pasted-image-20260630T06072.png)

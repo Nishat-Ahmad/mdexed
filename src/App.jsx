@@ -137,7 +137,12 @@ function App() {
       {/* RIGHT PANE - PREVIEW */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {fsManager.activeFile && (
-           <Preview content={fsManager.activeFile.body} frontmatter={fsManager.activeFile.frontmatter} onHeadingsChange={setHeadings} />
+           <Preview 
+             content={fsManager.activeFile.body} 
+             frontmatter={fsManager.activeFile.frontmatter} 
+             activeFileId={fsManager.activeFile.id}
+             onHeadingsChange={setHeadings} 
+           />
         )}
       </div>
     </div>

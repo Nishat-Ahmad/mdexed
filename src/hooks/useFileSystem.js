@@ -68,7 +68,21 @@ export function useFileSystem() {
               const parsed = parseMarkdownFile(d.content);
               loadedFiles.push({ id: d.filename, frontmatter: parsed.frontmatter, body: parsed.body });
               savedMap[d.filename] = d.content;
-              loadedFolderImages[d.filename] = d.images || [];
+              
+              // Map images to the folder path rather than the file ID
+              const folderPath = d.filename.includes('/') 
+                ? d.filename.split('/').slice(0, -1).join('/') 
+                : d.filename;
+                
+              if (!loadedFolderImages[folderPath]) {
+                loadedFolderImages[folderPath] = [];
+              }
+              const imgs = d.images || [];
+              imgs.forEach(img => {
+                if (!loadedFolderImages[folderPath].includes(img)) {
+                  loadedFolderImages[folderPath].push(img);
+                }
+              });
             }
           });
           lastSavedContentRef.current = savedMap;
@@ -319,10 +333,49 @@ export function useFileSystem() {
     }
   };
 
+  const renameImage = async (folderName, oldImageName) => {
+    const ext = oldImageName.substring(oldImageName.lastIndexOf('.'));
+    const baseName = oldImageName.substring(0, oldImageName.lastIndexOf('.'));
+    
+    const newBaseName = prompt("Enter new name for image:", baseName);
+    if (!newBaseName || newBaseName === baseName) return null;
+    
+    const cleanBaseName = newBaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const cleanNewName = `${cleanBaseName}${ext}`;
+    
+    try {
+      const res = await fetch('/api/rename-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderName, oldImageName, newImageName: cleanNewName })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const finalName = data.newName || cleanNewName;
+        
+        // Scan active file body and replace image reference
+        if (activeFile && activeFile.body.includes(oldImageName)) {
+          const updatedBody = activeFile.body.replaceAll(oldImageName, finalName);
+          updateActiveFile({ body: updatedBody });
+        }
+        
+        await loadFiles();
+        return finalName;
+      } else {
+        const errText = await res.text();
+        alert(`Failed to rename image: ${errText}`);
+        return null;
+      }
+    } catch (err) {
+      alert(`Failed to rename image: ${err.message}`);
+      return null;
+    }
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles, uploadImage
+    folderImages, loadFiles, uploadImage, renameImage
   };
 }

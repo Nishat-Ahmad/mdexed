@@ -276,7 +276,7 @@ export default function FileExplorer({ fsManager }) {
               padding: `0.25rem 0.5rem 0.25rem ${level * 16 + 24}px`, 
               cursor: 'pointer',
               borderLeft: isSelected ? '2px solid var(--color-teal)' : '2px solid transparent',
-              backgroundColor: isSelected ? 'rgba(45, 212, 191, 0.04)' : 'transparent',
+              backgroundColor: isSelected ? 'rgba(45, 212, 191, 0.15)' : 'transparent',
               transition: 'background-color 0.15s ease, border-left 0.15s ease'
             }}
             onClick={(e) => {
@@ -292,27 +292,9 @@ export default function FileExplorer({ fsManager }) {
             ) : (
                <FolderOpen size={12} style={{ color: isSelected ? 'var(--color-teal)' : 'var(--color-zinc-400)' }} />
             )}
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? 600 : 400, color: isSelected ? '#fff' : 'inherit' }}>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? 700 : 400, color: isSelected ? 'var(--color-teal)' : 'inherit' }}>
               {node.name}
             </span>
-            {isSelected && (
-              <span 
-                style={{ 
-                  fontSize: '0.625rem', 
-                  padding: '0.05rem 0.25rem', 
-                  borderRadius: '0.25rem', 
-                  backgroundColor: 'rgba(45, 212, 191, 0.15)', 
-                  color: 'var(--color-teal)', 
-                  marginRight: '0.5rem', 
-                  fontWeight: 600,
-                  letterSpacing: '0.02em',
-                  flexShrink: 0
-                }}
-                title="Press Ctrl+V to paste images directly into this folder"
-              >
-                Paste Target
-              </span>
-            )}
             <Plus
               size={12}
               className="action-btn btn-create"

@@ -131,10 +131,19 @@ export function useGitHubFileSystem() {
 
       // Check if file exists to get its SHA (required for updating)
       let sha = undefined;
-      const getRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${targetPath}`, { headers: apiHeaders() });
-      if (getRes.ok) {
-        const getData = await getRes.json();
-        sha = getData.sha;
+      const getRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${targetPath}`, { 
+        headers: apiHeaders(),
+        cache: 'no-store'
+      });
+      
+      if (getRes.ok && getRes.status !== 204) {
+        const responseText = await getRes.text();
+        try {
+          const getData = JSON.parse(responseText);
+          sha = getData.sha;
+        } catch (parseError) {
+          console.error("Invalid JSON from GitHub:", responseText);
+        }
       }
 
       // Encode content to base64 with utf-8 support

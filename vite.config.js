@@ -276,6 +276,59 @@ const localFileSystemApi = () => {
           return;
         }
 
+        // Handle Image Rename
+        if (req.url === '/api/rename-image' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk.toString(); });
+          req.on('end', () => {
+            try {
+              const { folderName, oldImageName, newImageName } = JSON.parse(body);
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              const oldImgPath = path.resolve(blogDir, folderName, oldImageName);
+              
+              if (!oldImgPath.startsWith(blogDir)) {
+                res.statusCode = 403;
+                res.end('Access denied');
+                return;
+              }
+              
+              if (!fs.existsSync(oldImgPath)) {
+                res.statusCode = 404;
+                res.end('Image not found');
+                return;
+              }
+              
+              const ext = path.extname(oldImageName);
+              let cleanNewName = newImageName.trim();
+              if (!path.extname(cleanNewName)) {
+                cleanNewName += ext;
+              }
+              
+              const newImgPath = path.resolve(blogDir, folderName, cleanNewName);
+              if (!newImgPath.startsWith(blogDir)) {
+                res.statusCode = 403;
+                res.end('Access denied');
+                return;
+              }
+              
+              if (fs.existsSync(newImgPath) && oldImgPath !== newImgPath) {
+                res.statusCode = 400;
+                res.end('A file with that name already exists');
+                return;
+              }
+              
+              fs.renameSync(oldImgPath, newImgPath);
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, newName: cleanNewName }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(err.message);
+            }
+          });
+          return;
+        }
+
         // Intercept image requests to serve local images from the filesystem
         const ext = path.extname(req.url.split('?')[0]).toLowerCase();
         const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];

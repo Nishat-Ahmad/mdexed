@@ -40,7 +40,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   );
 };
 
-export default function Preview({ content, frontmatter, onHeadingsChange }) {
+export default function Preview({ content, frontmatter, activeFileId, onHeadingsChange }) {
   const previewRef = useRef(null);
   const [progress, setProgress] = useState(0);
 
@@ -90,6 +90,27 @@ export default function Preview({ content, frontmatter, onHeadingsChange }) {
     }
   }, [content, onHeadingsChange]);
 
+  // Helper to resolve relative image sources
+  const resolveImageSrc = (src) => {
+    if (!src) return src;
+    // If it's absolute, external, or a data URI, keep it as is
+    if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('/') || src.startsWith('data:')) {
+      return src;
+    }
+    
+    // Remove leading ./ if present
+    const cleanSrc = src.startsWith('./') ? src.substring(2) : src;
+    
+    // Extract the folder path from activeFileId (e.g. "RAG/rag" -> "RAG")
+    const folder = activeFileId && activeFileId.includes('/') 
+      ? activeFileId.split('/').slice(0, -1).join('/') 
+      : '';
+      
+    return folder 
+      ? `/src/content/blog/${folder}/${cleanSrc}` 
+      : `/src/content/blog/${cleanSrc}`;
+  };
+
   return (
     <div className="preview-pane" ref={previewRef}>
       <div className="progress-bar-container">
@@ -136,6 +157,10 @@ export default function Preview({ content, frontmatter, onHeadingsChange }) {
               const text = String(children);
               const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
               return <h3 id={id} {...props}>{children}</h3>;
+            },
+            img: ({node, src, ...props}) => {
+              const resolvedSrc = resolveImageSrc(src);
+              return <img src={resolvedSrc} {...props} />;
             }
           }}
         >

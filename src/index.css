@@ -41,6 +41,14 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.prose-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1.5rem 0;
+  display: block;
+}
+
 .prose-preview ul, .prose-preview ol {
   color: var(--color-zinc-400);
   line-height: 1.8;

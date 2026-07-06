@@ -81,7 +81,8 @@ export default function FileExplorer({ fsManager }) {
     deleteItem,
     renameItem,
     folderImages,
-    loadFiles
+    loadFiles,
+    renameImage
   } = fsManager;
 
   // Auto-select folder when active file changes
@@ -349,6 +350,15 @@ export default function FileExplorer({ fsManager }) {
                 >
                   <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img}</span>
+                  <Edit2 
+                    size={12} 
+                    className="action-btn btn-edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      renameImage(node.path, img);
+                    }}
+                    style={{ marginRight: '0.25rem' }}
+                  />
                   <Trash2 
                     size={12} 
                     className="action-btn btn-danger"

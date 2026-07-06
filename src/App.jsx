@@ -7,13 +7,7 @@ import { useFileSystem } from './hooks/useFileSystem';
 import { useGitHubFileSystem } from './hooks/useGitHubFileSystem';
 import './index.css';
 
-function App() {
-  const isProd = import.meta.env.PROD;
-  const localFsManager = useFileSystem();
-  const githubFsManager = useGitHubFileSystem();
-  const fsManager = isProd ? githubFsManager : localFsManager;
-
-  
+function MainApp({ fsManager }) {
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');
   
@@ -145,13 +139,27 @@ function App() {
            <Preview 
              content={fsManager.activeFile.body} 
              frontmatter={fsManager.activeFile.frontmatter} 
-             activeFileId={fsManager.activeFile.id}
              onHeadingsChange={setHeadings} 
            />
         )}
       </div>
     </div>
   );
+}
+
+function LocalApp() {
+  const fsManager = useFileSystem();
+  return <MainApp fsManager={fsManager} />;
+}
+
+function CloudApp() {
+  const fsManager = useGitHubFileSystem();
+  return <MainApp fsManager={fsManager} />;
+}
+
+function App() {
+  const isProd = import.meta.env.PROD;
+  return isProd ? <CloudApp /> : <LocalApp />;
 }
 
 export default App;

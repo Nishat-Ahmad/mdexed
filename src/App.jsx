@@ -4,10 +4,15 @@ import Preview from './components/Preview';
 import Sidebar from './components/Sidebar';
 import Resizer from './components/Resizer';
 import { useFileSystem } from './hooks/useFileSystem';
+import { useGitHubFileSystem } from './hooks/useGitHubFileSystem';
 import './index.css';
 
 function App() {
-  const fsManager = useFileSystem();
+  const isProd = import.meta.env.PROD;
+  const localFsManager = useFileSystem();
+  const githubFsManager = useGitHubFileSystem();
+  const fsManager = isProd ? githubFsManager : localFsManager;
+
   
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');

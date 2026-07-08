@@ -1,8 +1,52 @@
-import React, { useRef } from 'react';
-import MonacoEditor from '@monaco-editor/react';
+import React, { useRef, useEffect } from 'react';
+import MonacoEditor, { useMonaco } from '@monaco-editor/react';
 
 export default function Editor({ value, onChange, onImagePaste }) {
   const editorRef = useRef(null);
+  const monaco = useMonaco();
+
+  useEffect(() => {
+    if (monaco) {
+      // Define both transparent themes (light and dark)
+      monaco.editor.defineTheme('transparent-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: { 'editor.background': '#00000000' }
+      });
+      monaco.editor.defineTheme('transparent-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [],
+        colors: { 'editor.background': '#00000000' }
+      });
+
+      // Function to apply the correct theme based on localStorage
+      const applyCurrentTheme = () => {
+        const savedThemeId = localStorage.getItem('mdexed-theme');
+        let isLight = false;
+        if (savedThemeId === 'light' || savedThemeId === 'electric-chartreuse') {
+          isLight = true;
+        }
+        monaco.editor.setTheme(isLight ? 'transparent-light' : 'transparent-dark');
+      };
+
+      // Apply initially
+      applyCurrentTheme();
+
+      // Listen for dynamic theme changes
+      const handleThemeChange = (e) => {
+        const theme = e.detail;
+        monaco.editor.setTheme(theme.isLight ? 'transparent-light' : 'transparent-dark');
+      };
+      
+      window.addEventListener('themeChanged', handleThemeChange);
+      
+      return () => {
+        window.removeEventListener('themeChanged', handleThemeChange);
+      };
+    }
+  }, [monaco]);
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -138,14 +182,14 @@ export default function Editor({ value, onChange, onImagePaste }) {
   };
 
   return (
-    <div className="editor-pane" onPaste={handlePaste}>
+    <div className="editor-pane" style={{ backgroundColor: 'var(--bg-color)' }} onPaste={handlePaste}>
       <div className="pane-header">
         <span>Markdown Editor</span>
       </div>
       <MonacoEditor
         height="100%"
         defaultLanguage="markdown"
-        theme="vs-dark"
+        theme="transparent-dark"
         value={value}
         onChange={onChange}
         onMount={handleEditorDidMount}

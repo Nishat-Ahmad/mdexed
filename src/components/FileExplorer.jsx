@@ -430,7 +430,7 @@ export default function FileExplorer({ fsManager }) {
       </div>
 
       {selectedFolder && (
-        <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--color-zinc-800)', fontSize: '0.7rem', color: 'var(--color-zinc-500)', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0e0e10' }}>
+        <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--color-zinc-800)', fontSize: '0.7rem', color: 'var(--color-zinc-400)', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-color)' }}>
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-teal)' }} />
           <span>Active target: <strong>{selectedFolder}</strong>. Press <strong>Ctrl+V</strong> to paste image.</span>
         </div>
@@ -443,15 +443,15 @@ export default function FileExplorer({ fsManager }) {
         >
           <img 
             src={`/${viewingImage}`} 
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', backgroundColor: '#09090b', borderRadius: '0.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' }} 
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' }} 
             alt={viewingImage}
             onClick={(e) => e.stopPropagation()} 
           />
           <button 
-            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: '#18181b', border: '1px solid #27272a', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer', transition: 'background 0.2s' }}
+            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'var(--color-zinc-900)', border: '1px solid var(--color-zinc-800)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer', transition: 'background 0.2s' }}
             onClick={() => setViewingImage(null)}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#27272a'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#18181b'}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-zinc-800)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--color-zinc-900)'}
             title="Close Image"
           >
             <span style={{ fontSize: '1.5rem', lineHeight: 1, marginTop: '-2px' }}>&times;</span>

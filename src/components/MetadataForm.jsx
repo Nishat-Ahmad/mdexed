@@ -32,7 +32,7 @@ export default function MetadataForm({ data, onChange }) {
 
   return (
     <div style={{ padding: '1.5rem 1.5rem 0', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <h2>Post Details</h2>
+      <h2 style={{ marginTop: 0, color: 'var(--text-color, #fff)', borderBottom: '1px solid var(--color-zinc-800)', paddingBottom: '0.75rem', fontSize: '1.25rem' }}>Post Details</h2>
       
       <div className="form-group">
         <label>Title</label>
@@ -54,7 +54,7 @@ export default function MetadataForm({ data, onChange }) {
 
       <div className="form-group">
         <label>Summary</label>
-        <textarea name="summary" value={data.summary || ''} onChange={handleChange} rows={3} placeholder="Short excerpt..." />
+        <textarea name="summary" value={data.summary || ''} onChange={handleChange} rows={8} placeholder="Short excerpt..." />
       </div>
 
       <div className="form-group">

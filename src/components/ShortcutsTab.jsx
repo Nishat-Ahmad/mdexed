@@ -16,12 +16,12 @@ export default function ShortcutsTab() {
 
   return (
     <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <h2 style={{ marginTop: 0, borderBottom: '1px solid var(--color-zinc-800)', paddingBottom: '0.75rem', fontSize: '1.25rem' }}>Keyboard Shortcuts</h2>
+      <h2 style={{ marginTop: 0, color: 'var(--text-color, #fff)', borderBottom: '1px solid var(--color-zinc-800)', paddingBottom: '0.75rem', fontSize: '1.25rem' }}>Keyboard Shortcuts</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {shortcuts.map((s, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px solid var(--color-zinc-800)' }}>
-            <span style={{ color: 'var(--color-zinc-300)', fontSize: '0.875rem' }}>{s.action}</span>
-            <kbd style={{ backgroundColor: '#27272a', color: '#2dd4bf', padding: '0.375rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'ui-monospace, monospace', fontSize: '0.75rem', border: '1px solid #3f3f46', boxShadow: '0 2px 0 #18181b' }}>
+            <span style={{ color: 'var(--text-color, #fff)', fontSize: '0.875rem' }}>{s.action}</span>
+            <kbd style={{ backgroundColor: 'var(--color-zinc-800)', color: 'var(--color-teal)', padding: '0.375rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'ui-monospace, monospace', fontSize: '0.75rem', border: '1px solid var(--color-zinc-800)', boxShadow: '0 2px 0 var(--color-zinc-900)' }}>
               {s.key}
             </kbd>
           </div>

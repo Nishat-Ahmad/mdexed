@@ -8,9 +8,7 @@ export default function ShortcutsTab() {
     { key: 'Ctrl + E', action: 'Inline Code (`text`)' },
     { key: 'Ctrl + Shift + C', action: 'Code Block (```)' },
     { key: 'Ctrl + K', action: 'Insert Link ([text](url))' },
-    { key: 'Ctrl + H', action: 'Heading 2 (##)' },
-    { key: 'Ctrl + Q', action: 'Blockquote (>)' },
-    { key: 'Ctrl + L', action: 'Unordered List (-)' },
+    { key: 'Ctrl + Shift + K', action: 'Insert Image (![image](/example.png))' },
     { key: 'Ctrl + V', action: 'Paste Image (Auto-uploads)' }
   ];
 

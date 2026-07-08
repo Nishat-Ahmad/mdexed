@@ -39,9 +39,9 @@ export default function Editor({ value, onChange, onImagePaste }) {
         const theme = e.detail;
         monaco.editor.setTheme(theme.isLight ? 'transparent-light' : 'transparent-dark');
       };
-      
+
       window.addEventListener('themeChanged', handleThemeChange);
-      
+
       return () => {
         window.removeEventListener('themeChanged', handleThemeChange);
       };
@@ -56,15 +56,15 @@ export default function Editor({ value, onChange, onImagePaste }) {
       const model = editor.getModel();
       const selectedText = model.getValueInRange(selection);
       const newText = `${prefix}${selectedText}${suffix}`;
-      
+
       const op = {
         range: selection,
         text: newText,
         forceMoveMarkers: true
       };
-      
+
       editor.executeEdits("format", [op]);
-      
+
       if (selectedText.length === 0) {
         editor.setPosition({
           lineNumber: selection.startLineNumber,
@@ -107,15 +107,15 @@ export default function Editor({ value, onChange, onImagePaste }) {
       const model = editor.getModel();
       const selectedText = model.getValueInRange(selection);
       const newText = `[${selectedText}](url)`;
-      
+
       const op = {
         range: selection,
         text: newText,
         forceMoveMarkers: true
       };
-      
+
       editor.executeEdits("format", [op]);
-      
+
       if (selectedText.length === 0) {
         // Move inside the brackets if no text selected
         editor.setPosition({
@@ -134,24 +134,44 @@ export default function Editor({ value, onChange, onImagePaste }) {
       editor.focus();
     });
 
-    // Heading 2 (Ctrl+H)
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH, () => {
-      formatText('## ', '');
-    });
+    // Image Syntax (Ctrl+Shift+K)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyK, () => {
+      const selection = editor.getSelection();
+      const model = editor.getModel();
+      const selectedText = model.getValueInRange(selection);
+      const newText = `![${selectedText || 'image'}](/example.png)`;
 
-    // Blockquote (Ctrl+Q)
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyQ, () => {
-      formatText('> ', '');
+      const op = {
+        range: selection,
+        text: newText,
+        forceMoveMarkers: true
+      };
+
+      editor.executeEdits("format", [op]);
+
+      if (selectedText.length === 0) {
+        // Select 'example.png'
+        editor.setSelection({
+          startLineNumber: selection.startLineNumber,
+          startColumn: selection.startColumn + 10,
+          endLineNumber: selection.startLineNumber,
+          endColumn: selection.startColumn + 21
+        });
+      } else {
+        // Select 'example.png'
+        editor.setSelection({
+          startLineNumber: selection.endLineNumber,
+          startColumn: selection.endColumn + 5,
+          endLineNumber: selection.endLineNumber,
+          endColumn: selection.endColumn + 16
+        });
+      }
+      editor.focus();
     });
 
     // Code Block (Ctrl+Shift+C)
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyC, () => {
       formatText('\n```\n', '\n```\n');
-    });
-
-    // Unordered List (Ctrl+L)
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
-      formatText('- ', '');
     });
   };
 

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Check, Loader2, AlertCircle } from 'lucide-react';
+import React from 'react';
 import FileExplorer from './FileExplorer';
 import SettingsTab from './SettingsTab';
+import ShortcutsTab from './ShortcutsTab';
 
 export default function Sidebar({ width, fsManager, headings, activeHeadingId, activeSidebarTab }) {
   const { 
@@ -16,6 +16,8 @@ export default function Sidebar({ width, fsManager, headings, activeHeadingId, a
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {activeSidebarTab === 'explorer' ? (
           <FileExplorer fsManager={fsManager} />
+        ) : activeSidebarTab === 'shortcuts' ? (
+          <ShortcutsTab />
         ) : (
           <SettingsTab 
             activeFile={activeFile}

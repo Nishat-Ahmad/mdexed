@@ -89,6 +89,26 @@ export default function Editor({ value, onChange, onImagePaste }) {
       }
       editor.focus();
     });
+
+    // Heading 2 (Ctrl+H)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH, () => {
+      formatText('## ', '');
+    });
+
+    // Blockquote (Ctrl+Q)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyQ, () => {
+      formatText('> ', '');
+    });
+
+    // Code Block (Ctrl+Shift+C)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyC, () => {
+      formatText('\n```\n', '\n```\n');
+    });
+
+    // Unordered List (Ctrl+L)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
+      formatText('- ', '');
+    });
   };
 
   const handlePaste = async (e) => {

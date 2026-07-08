@@ -67,6 +67,7 @@ export default function FileExplorer({ fsManager }) {
   const [collapsedFolders, setCollapsedFolders] = useState({});
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [uploadTargetFolder, setUploadTargetFolder] = useState(null);
+  const [viewingImage, setViewingImage] = useState(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
 
@@ -346,7 +347,8 @@ export default function FileExplorer({ fsManager }) {
                 <div 
                   key={node.path + '/' + img} 
                   className="file-item"
-                  style={{ paddingLeft: `${(level + 1) * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'default' }}
+                  style={{ paddingLeft: `${(level + 1) * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                  onClick={() => setViewingImage(img)}
                 >
                   <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img}</span>
@@ -431,6 +433,29 @@ export default function FileExplorer({ fsManager }) {
         <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--color-zinc-800)', fontSize: '0.7rem', color: 'var(--color-zinc-500)', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0e0e10' }}>
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-teal)' }} />
           <span>Active target: <strong>{selectedFolder}</strong>. Press <strong>Ctrl+V</strong> to paste image.</span>
+        </div>
+      )}
+
+      {viewingImage && (
+        <div 
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}
+          onClick={() => setViewingImage(null)}
+        >
+          <img 
+            src={`/${viewingImage}`} 
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', backgroundColor: '#09090b', borderRadius: '0.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' }} 
+            alt={viewingImage}
+            onClick={(e) => e.stopPropagation()} 
+          />
+          <button 
+            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: '#18181b', border: '1px solid #27272a', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer', transition: 'background 0.2s' }}
+            onClick={() => setViewingImage(null)}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#27272a'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#18181b'}
+            title="Close Image"
+          >
+            <span style={{ fontSize: '1.5rem', lineHeight: 1, marginTop: '-2px' }}>&times;</span>
+          </button>
         </div>
       )}
     </div>

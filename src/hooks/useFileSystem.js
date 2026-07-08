@@ -257,7 +257,17 @@ export function useFileSystem() {
              setActiveFileId(remaining.length > 0 ? remaining[0].id : null);
            }
         } else {
-           setEmptyFolders(prev => prev.filter(f => f !== targetId));
+           setEmptyFolders(prev => prev.filter(f => f !== targetId && !f.startsWith(targetId + '/')));
+           setFiles(prev => {
+             const remaining = prev.filter(f => f.id !== targetId && !f.id.startsWith(targetId + '/'));
+             
+             // Check if active file was in the deleted folder
+             if (activeFileId === targetId || activeFileId?.startsWith(targetId + '/')) {
+                setActiveFileId(remaining.length > 0 ? remaining[0].id : null);
+             }
+             
+             return remaining;
+           });
         }
       }
     } catch (err) { console.error(err); }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Files, Info, FileEdit, PanelRight, Save, Loader2, Check, AlertCircle } from 'lucide-react';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import Sidebar from './components/Sidebar';
@@ -13,6 +14,20 @@ function MainApp({ fsManager }) {
   
   const [editorWidth, setEditorWidth] = useState(50);
   const [sidebarWidth, setSidebarWidth] = useState(320);
+  
+  const [activeSidebarTab, setActiveSidebarTab] = useState('explorer');
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showEditor, setShowEditor] = useState(true);
+  const [showPreview, setShowPreview] = useState(true);
+
+  const handleSidebarTabClick = (tab) => {
+    if (showSidebar && activeSidebarTab === tab) {
+      setShowSidebar(false);
+    } else {
+      setActiveSidebarTab(tab);
+      setShowSidebar(true);
+    }
+  };
   
   const isDragging = useRef(false);
   const isSidebarDragging = useRef(false);
@@ -29,8 +44,8 @@ function MainApp({ fsManager }) {
 
   const onDrag = (e) => {
     if (!isDragging.current) return;
-    const availableWidth = window.innerWidth - sidebarWidth;
-    const newWidth = ((e.clientX - sidebarWidth) / availableWidth) * 100;
+    const availableWidth = window.innerWidth - (showSidebar ? sidebarWidth : 0);
+    const newWidth = ((e.clientX - (showSidebar ? sidebarWidth : 0)) / availableWidth) * 100;
     if (newWidth >= 10 && newWidth <= 90) setEditorWidth(newWidth);
   };
 
@@ -110,39 +125,97 @@ function MainApp({ fsManager }) {
   };
 
   return (
-    <div className="app-container">
-      <Sidebar 
-        width={sidebarWidth} 
-        fsManager={fsManager} 
-        headings={headings} 
-        activeHeadingId={activeHeadingId} 
-      />
+    <div className="app-container" style={{ position: 'relative' }}>
+      {/* ACTIVITY BAR */}
+      <div style={{ width: '48px', backgroundColor: '#09090b', borderRight: '1px solid #27272a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1rem 0', flexShrink: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
+          <button onClick={() => handleSidebarTabClick('explorer')} style={{ background: 'transparent', border: 'none', color: (showSidebar && activeSidebarTab === 'explorer') ? '#2dd4bf' : '#52525b', cursor: 'pointer', padding: '0.5rem', display: 'flex', transition: 'color 0.2s' }} title="Explorer">
+            <Files size={22} />
+          </button>
+          <button onClick={() => handleSidebarTabClick('settings')} style={{ background: 'transparent', border: 'none', color: (showSidebar && activeSidebarTab === 'settings') ? '#2dd4bf' : '#52525b', cursor: 'pointer', padding: '0.5rem', display: 'flex', transition: 'color 0.2s' }} title="Post Details">
+            <Info size={22} />
+          </button>
+          <button onClick={() => setShowEditor(!showEditor)} style={{ background: 'transparent', border: 'none', color: showEditor ? '#2dd4bf' : '#52525b', cursor: 'pointer', padding: '0.5rem', display: 'flex', transition: 'color 0.2s' }} title={showEditor ? "Hide Markdown Editor" : "Show Markdown Editor"}>
+            <FileEdit size={22} />
+          </button>
+          <button onClick={() => setShowPreview(!showPreview)} style={{ background: 'transparent', border: 'none', color: showPreview ? '#2dd4bf' : '#52525b', cursor: 'pointer', padding: '0.5rem', display: 'flex', transition: 'color 0.2s' }} title={showPreview ? "Hide Live Viewer" : "Show Live Viewer"}>
+            <PanelRight size={22} />
+          </button>
+        </div>
+        
+        {/* SAVE INDICATOR AT BOTTOM OF ACTIVITY BAR */}
+        <div style={{ paddingBottom: '0.5rem' }}>
+          {(() => {
+            switch (fsManager.saveStatus) {
+              case 'saving':
+                return (
+                  <button style={{ background: 'transparent', border: 'none', color: '#a1a1aa', padding: '0.5rem', display: 'flex', cursor: 'not-allowed', opacity: 0.8 }} title="Saving to Disk..." disabled>
+                    <Loader2 size={22} className="animate-spin" />
+                  </button>
+                );
+              case 'saved':
+                return (
+                  <button onClick={fsManager.handleSaveToDisk} style={{ background: 'transparent', border: 'none', color: '#2dd4bf', padding: '0.5rem', display: 'flex', cursor: 'pointer', transition: 'color 0.2s' }} title="Saved to Disk">
+                    <Check size={22} />
+                  </button>
+                );
+              case 'error':
+                return (
+                  <button onClick={fsManager.handleSaveToDisk} style={{ background: 'transparent', border: 'none', color: '#ef4444', padding: '0.5rem', display: 'flex', cursor: 'pointer', transition: 'color 0.2s' }} title="Save Failed (Click to Retry)">
+                    <AlertCircle size={22} />
+                  </button>
+                );
+              case 'unsaved':
+              default:
+                return (
+                  <button onClick={fsManager.handleSaveToDisk} style={{ background: 'transparent', border: 'none', color: '#a1a1aa', padding: '0.5rem', display: 'flex', cursor: 'pointer', transition: 'color 0.2s' }} title="Unsaved Changes (Click to Save)">
+                    <Save size={22} />
+                  </button>
+                );
+            }
+          })()}
+        </div>
+      </div>
+
+      {showSidebar && (
+        <Sidebar 
+          width={sidebarWidth} 
+          fsManager={fsManager} 
+          headings={headings} 
+          activeHeadingId={activeHeadingId} 
+          activeSidebarTab={activeSidebarTab}
+        />
+      )}
       
-      <Resizer onMouseDown={startSidebarDragging} />
+      {showSidebar && (showEditor || showPreview) && <Resizer onMouseDown={startSidebarDragging} />}
 
       {/* MIDDLE PANE - EDITOR */}
-      <div style={{ width: `${editorWidth}%`, flex: 'none', display: 'flex', flexDirection: 'column' }}>
-        {fsManager.activeFile && (
-           <Editor 
-             value={fsManager.activeFile.body} 
-             onChange={(body) => fsManager.updateActiveFile({ body })} 
-             onImagePaste={handleImagePaste} 
-           />
-        )}
-      </div>
+      {showEditor && (
+        <div style={{ width: showPreview ? `${editorWidth}%` : 'auto', flex: showPreview ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
+          {fsManager.activeFile && (
+             <Editor 
+               value={fsManager.activeFile.body} 
+               onChange={(body) => fsManager.updateActiveFile({ body })} 
+               onImagePaste={handleImagePaste} 
+             />
+          )}
+        </div>
+      )}
       
-      <Resizer onMouseDown={startDragging} />
+      {showEditor && showPreview && <Resizer onMouseDown={startDragging} />}
       
       {/* RIGHT PANE - PREVIEW */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {fsManager.activeFile && (
-           <Preview 
-             content={fsManager.activeFile.body} 
-             frontmatter={fsManager.activeFile.frontmatter} 
-             onHeadingsChange={setHeadings} 
-           />
-        )}
-      </div>
+      {showPreview && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {fsManager.activeFile && (
+             <Preview 
+               content={fsManager.activeFile.body} 
+               frontmatter={fsManager.activeFile.frontmatter} 
+               onHeadingsChange={setHeadings} 
+             />
+          )}
+        </div>
+      )}
     </div>
   );
 }

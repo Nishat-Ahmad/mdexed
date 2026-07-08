@@ -32,7 +32,7 @@ export default function MetadataForm({ data, onChange }) {
 
   return (
     <div style={{ padding: '1.5rem 1.5rem 0', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <h2>Post Settings</h2>
+      <h2>Post Details</h2>
       
       <div className="form-group">
         <label>Title</label>

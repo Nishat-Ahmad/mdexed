@@ -26,6 +26,15 @@ if not exist node_modules (
     )
 )
 
+:: Check and update blog content repo
+if exist "src\content\blog\.git" (
+    echo INFO: Updating blog content...
+    git -C src/content/blog pull origin main
+) else (
+    echo INFO: Cloning blog content repo...
+    git clone https://github.com/Nishat-Ahmad/mdexed-content.git src/content/blog
+)
+
 :: Start Vite dev server and open the browser automatically
 echo ====================================================
 echo Starting MDXed Server...

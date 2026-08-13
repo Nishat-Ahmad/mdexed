@@ -37,6 +37,15 @@ if [ ! -d "node_modules" ]; then
     fi
 fi
 
+# Sync blog content repo
+if [ -d "src/content/blog/.git" ]; then
+    echo "INFO: Updating blog content..."
+    git -C src/content/blog pull origin main || true
+else
+    echo "INFO: Cloning blog content repo..."
+    git clone https://github.com/Nishat-Ahmad/mdexed-content.git src/content/blog
+fi
+
 # Start Vite dev server and open the browser automatically
 echo "Starting MDXed Server..."
 echo "The editor will open in your default browser shortly."

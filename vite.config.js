@@ -13,6 +13,11 @@ const getFilesRecursively = (dir, baseDir) => {
   list.forEach(item => {
     const fullPath = path.join(dir, item.name);
     if (item.isDirectory()) {
+      if (item.name === '.git') {
+        const relativeName = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+        results.push({ isEmptyFolder: true, name: relativeName, images: [] });
+        return;
+      }
       const subResults = getFilesRecursively(fullPath, baseDir);
       results = results.concat(subResults);
       
@@ -225,6 +230,91 @@ const localFileSystemApi = () => {
                 fs.renameSync(oldFlatFile, newFlatFile);
               }
               
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        // Handle Move (Files, Folders, Images)
+        if (req.url === '/api/move' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk.toString(); });
+          req.on('end', () => {
+            try {
+              const { type, sourcePath, sourceFolder, imageName, targetFolder } = JSON.parse(body);
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              const cleanTargetFolder = (targetFolder || '').trim();
+              const targetDir = path.resolve(blogDir, cleanTargetFolder);
+
+              if (!targetDir.startsWith(blogDir)) {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'Access denied' }));
+                return;
+              }
+
+              if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
+              }
+
+              if (type === 'image') {
+                const oldImgPath = path.resolve(blogDir, sourceFolder || '', imageName);
+                const newImgPath = path.resolve(targetDir, imageName);
+
+                if (!oldImgPath.startsWith(blogDir) || !fs.existsSync(oldImgPath)) {
+                  res.statusCode = 404;
+                  res.end(JSON.stringify({ error: 'Image file not found' }));
+                  return;
+                }
+
+                if (oldImgPath !== newImgPath) {
+                  fs.renameSync(oldImgPath, newImgPath);
+                }
+              } else if (type === 'file') {
+                const baseName = path.basename(sourcePath);
+                const fileName = baseName.endsWith('.md') ? baseName : `${baseName}.md`;
+
+                const flatOldPath = path.resolve(blogDir, sourcePath.endsWith('.md') ? sourcePath : `${sourcePath}.md`);
+                const folderOldPath = path.resolve(blogDir, sourcePath, fileName);
+
+                let actualOldPath = null;
+                if (fs.existsSync(flatOldPath)) {
+                  actualOldPath = flatOldPath;
+                } else if (fs.existsSync(folderOldPath)) {
+                  actualOldPath = folderOldPath;
+                }
+
+                if (!actualOldPath) {
+                  res.statusCode = 404;
+                  res.end(JSON.stringify({ error: 'Source markdown file not found' }));
+                  return;
+                }
+
+                const newFilePath = path.resolve(targetDir, fileName);
+                if (actualOldPath !== newFilePath) {
+                  fs.renameSync(actualOldPath, newFilePath);
+                }
+              } else if (type === 'folder') {
+                const folderName = path.basename(sourcePath);
+                const oldFolderPath = path.resolve(blogDir, sourcePath);
+                const newFolderPath = path.resolve(targetDir, folderName);
+
+                if (!oldFolderPath.startsWith(blogDir) || !fs.existsSync(oldFolderPath)) {
+                  res.statusCode = 404;
+                  res.end(JSON.stringify({ error: 'Source folder not found' }));
+                  return;
+                }
+
+                if (oldFolderPath !== newFolderPath) {
+                  fs.renameSync(oldFolderPath, newFolderPath);
+                }
+              }
+
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ success: true }));

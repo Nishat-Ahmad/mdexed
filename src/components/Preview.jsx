@@ -1,42 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { Copy, Check, Calendar, Clock } from 'lucide-react';
 
-// Custom component for copyable code blocks
-const CodeBlock = ({ node, inline, className, children, ...props }) => {
-  const match = /language-(\w+)/.exec(className || '');
+// Custom component for pre (block code wrapper) with copy button
+const PreBlock = ({ children, ...props }) => {
   const [copied, setCopied] = useState(false);
+  const preRef = useRef(null);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (preRef.current) {
+      const codeText = preRef.current.innerText || '';
+      navigator.clipboard.writeText(codeText.replace(/\n$/, ''));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
-  if (!inline) {
-    return (
-      <div style={{ position: 'relative' }}>
-        <button 
-          onClick={handleCopy}
-          className={`copy-btn ${copied ? 'copied' : ''}`}
-          title="Copy code"
-        >
-          {copied ? <Check size={16} /> : <Copy size={16} />}
-        </button>
-        <pre className={className} {...props}>
-          <code className={match ? match[1] : ''}>
-            {children}
-          </code>
-        </pre>
-      </div>
-    );
-  }
-
   return (
-    <code className={className} {...props}>
-      {children}
-    </code>
+    <div style={{ position: 'relative' }}>
+      <button 
+        onClick={handleCopy}
+        className={`copy-btn ${copied ? 'copied' : ''}`}
+        title="Copy code"
+      >
+        {copied ? <Check size={16} /> : <Copy size={16} />}
+      </button>
+      <pre ref={preRef} {...props}>
+        {children}
+      </pre>
+    </div>
   );
 };
 
@@ -144,21 +140,29 @@ export default function Preview({ content, frontmatter, activeFileId, onHeadings
         )}
 
         <ReactMarkdown 
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
           components={{
-            code: CodeBlock,
+            pre: PreBlock,
+            code: ({ _node, className, children, ...props }) => {
+              return (
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              );
+            },
             // Automatically add ids to headers rendered by markdown
-            h2: ({node, children, ...props}) => {
+            h2: ({ _node, children, ...props }) => {
               const text = String(children);
               const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
               return <h2 id={id} {...props}>{children}</h2>;
             },
-            h3: ({node, children, ...props}) => {
+            h3: ({ _node, children, ...props }) => {
               const text = String(children);
               const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
               return <h3 id={id} {...props}>{children}</h3>;
             },
-            img: ({node, src, ...props}) => {
+            img: ({ _node, src, ...props }) => {
               const resolvedSrc = resolveImageSrc(src);
               return <img src={resolvedSrc} {...props} />;
             }

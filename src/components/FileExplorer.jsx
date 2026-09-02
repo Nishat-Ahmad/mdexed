@@ -1,7 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus } from 'lucide-react';
+import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus, Eye, EyeOff } from 'lucide-react';
 
-const buildExplorerTree = (files, emptyFolders, folderImages) => {
+const isHiddenPath = (pathStr) => {
+  if (!pathStr) return false;
+  return pathStr.split('/').some(part => part.startsWith('.'));
+};
+
+const buildExplorerTree = (files, emptyFolders, folderImages, showHiddenFolders = false) => {
   const root = { name: 'root', path: '', type: 'folder', children: [], images: [] };
 
   const getOrCreateFolder = (pathParts) => {
@@ -28,12 +33,18 @@ const buildExplorerTree = (files, emptyFolders, folderImages) => {
 
   // Add empty folders
   emptyFolders.forEach(folderPath => {
+    if (!showHiddenFolders && isHiddenPath(folderPath)) {
+      return;
+    }
     const parts = folderPath.split('/');
     getOrCreateFolder(parts);
   });
 
   // Add files
   files.forEach(file => {
+    if (!showHiddenFolders && isHiddenPath(file.id)) {
+      return;
+    }
     if (file.id.includes('/')) {
       // Nested files go directly inside their parent folder
       const parts = file.id.split('/');
@@ -68,8 +79,23 @@ export default function FileExplorer({ fsManager }) {
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [uploadTargetFolder, setUploadTargetFolder] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
+  const [showHiddenFolders, setShowHiddenFolders] = useState(() => {
+    const saved = localStorage.getItem('mdexed_show_hidden_folders');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  const toggleShowHiddenFolders = () => {
+    setShowHiddenFolders(prev => {
+      const next = !prev;
+      localStorage.setItem('mdexed_show_hidden_folders', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+
+  const [dragOverTarget, setDragOverTarget] = useState(null);
 
   const {
     files,
@@ -83,7 +109,8 @@ export default function FileExplorer({ fsManager }) {
     renameItem,
     folderImages,
     loadFiles,
-    renameImage
+    renameImage,
+    moveItem
   } = fsManager;
 
   // Auto-select folder when active file changes
@@ -218,7 +245,66 @@ export default function FileExplorer({ fsManager }) {
     }
   };
 
-  const tree = buildExplorerTree(files, emptyFolders, folderImages);
+  const handleDragOver = (e, targetFolder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e, targetFolder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(targetFolder);
+  };
+
+  const handleDragLeave = (e, targetFolder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragOverTarget === targetFolder) {
+      setDragOverTarget(null);
+    }
+  };
+
+  const handleDrop = async (e, targetFolder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+
+    const rawData = e.dataTransfer.getData('application/json');
+    if (!rawData) return;
+
+    try {
+      const dragItem = JSON.parse(rawData);
+      
+      // Prevent dropping folder onto itself or into a subfolder of itself
+      if (dragItem.type === 'folder') {
+        if (dragItem.sourcePath === targetFolder || targetFolder.startsWith(dragItem.sourcePath + '/')) {
+          return;
+        }
+      }
+
+      // Prevent dropping file into its current folder
+      if (dragItem.type === 'file') {
+        const parentFolder = dragItem.sourcePath.includes('/') 
+          ? dragItem.sourcePath.split('/').slice(0, -1).join('/')
+          : '';
+        if (parentFolder === targetFolder) return;
+      }
+
+      // Prevent dropping image into its current folder
+      if (dragItem.type === 'image') {
+        if (dragItem.sourceFolder === targetFolder) return;
+      }
+
+      if (moveItem) {
+        await moveItem(dragItem, targetFolder);
+      }
+    } catch (err) {
+      console.error("Drop handling error:", err);
+    }
+  };
+
+  const tree = buildExplorerTree(files, emptyFolders, folderImages, showHiddenFolders);
 
   const renderNode = (node, level = 0) => {
     if (node.type === 'file') {
@@ -226,9 +312,22 @@ export default function FileExplorer({ fsManager }) {
       return (
         <div 
           key={node.path + '-file'}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('application/json', JSON.stringify({
+              type: 'file',
+              sourcePath: node.path,
+              name: node.name
+            }));
+          }}
+          onDragEnd={() => {
+            setDragOverTarget(null);
+          }}
           onClick={() => setActiveFileId(node.path)} 
           className={`file-item ${isActive ? 'active' : ''}`}
-          style={{ paddingLeft: `${level * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center' }}
+          style={{ paddingLeft: `${level * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'grab' }}
         >
           <FileText size={14} style={{ minWidth: '14px', marginRight: '0.375rem' }} />
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
@@ -257,8 +356,10 @@ export default function FileExplorer({ fsManager }) {
       }
 
       const isCollapsed = collapsedFolders[node.path];
-      const images = folderImages[node.path] || [];
+      const rawImages = folderImages[node.path] || [];
+      const images = showHiddenFolders ? rawImages : rawImages.filter(img => !img.startsWith('.'));
       const isSelected = selectedFolder === node.path;
+      const isDragTarget = dragOverTarget === node.path;
 
       const sortedChildren = [...node.children].sort((a, b) => {
         if (a.type === b.type) return a.name.localeCompare(b.name);
@@ -269,16 +370,36 @@ export default function FileExplorer({ fsManager }) {
         <div key={node.path} style={{ marginBottom: '0.25rem' }}>
           <div 
             className={`folder-row ${isSelected ? 'selected' : ''}`}
+            draggable={node.path !== ''}
+            onDragStart={(e) => {
+              if (node.path === '') return;
+              e.stopPropagation();
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('application/json', JSON.stringify({
+                type: 'folder',
+                sourcePath: node.path,
+                name: node.name
+              }));
+            }}
+            onDragEnd={() => {
+              setDragOverTarget(null);
+            }}
+            onDragOver={(e) => handleDragOver(e, node.path)}
+            onDragEnter={(e) => handleDragEnter(e, node.path)}
+            onDragLeave={(e) => handleDragLeave(e, node.path)}
+            onDrop={(e) => handleDrop(e, node.path)}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '0.375rem', 
-              color: 'var(--color-zinc-300)', 
+              color: isDragTarget ? 'var(--color-teal)' : 'var(--color-zinc-300)', 
               fontSize: '0.8125rem', 
               padding: `0.25rem 0.5rem 0.25rem ${level * 16 + 24}px`, 
               cursor: 'pointer',
-              borderLeft: isSelected ? '2px solid var(--color-teal)' : '2px solid transparent',
-              backgroundColor: isSelected ? 'rgba(45, 212, 191, 0.15)' : 'transparent',
+              borderLeft: isSelected ? '2px solid var(--color-teal)' : isDragTarget ? '2px dashed var(--color-teal)' : '2px solid transparent',
+              backgroundColor: isDragTarget ? 'rgba(45, 212, 191, 0.25)' : isSelected ? 'rgba(45, 212, 191, 0.15)' : 'transparent',
+              outline: isDragTarget ? '1px dashed var(--color-teal)' : 'none',
+              borderRadius: isDragTarget ? '4px' : '0',
               transition: 'background-color 0.15s ease, border-left 0.15s ease'
             }}
             onClick={(e) => {
@@ -346,8 +467,21 @@ export default function FileExplorer({ fsManager }) {
               {images.map(img => (
                 <div 
                   key={node.path + '/' + img} 
+                  draggable
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                      type: 'image',
+                      sourceFolder: node.path,
+                      imageName: img
+                    }));
+                  }}
+                  onDragEnd={() => {
+                    setDragOverTarget(null);
+                  }}
                   className="file-item"
-                  style={{ paddingLeft: `${(level + 1) * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                  style={{ paddingLeft: `${(level + 1) * 16 + 36}px`, marginTop: '0.125rem', display: 'flex', alignItems: 'center', cursor: 'grab' }}
                   onClick={() => setViewingImage(img)}
                 >
                   <Image size={14} style={{ minWidth: '14px', marginRight: '0.375rem', color: 'var(--color-teal)' }} />
@@ -398,6 +532,13 @@ export default function FileExplorer({ fsManager }) {
             style={{ display: 'none' }} 
             onChange={handleImageFileChange} 
           />
+          <button 
+            onClick={toggleShowHiddenFolders} 
+            style={{ background: 'none', border: 'none', color: showHiddenFolders ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex', transition: 'color 0.2s' }} 
+            title={showHiddenFolders ? "Hide hidden folders (e.g. .git)" : "Show hidden folders (e.g. .git)"}
+          >
+            {showHiddenFolders ? <Eye size={16} /> : <EyeOff size={16} />}
+          </button>
           <button onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="Open File">
             <Upload size={16} />
           </button>
@@ -410,9 +551,33 @@ export default function FileExplorer({ fsManager }) {
         </div>
       </div>
       
-      <div style={{ flex: 1, padding: '0.75rem 0.5rem', overflowY: 'auto' }}>
+      <div 
+        style={{ 
+          flex: 1, 
+          padding: '0.75rem 0.5rem', 
+          overflowY: 'auto',
+          backgroundColor: dragOverTarget === '' ? 'rgba(45, 212, 191, 0.1)' : 'transparent',
+          border: dragOverTarget === '' ? '2px dashed var(--color-teal)' : '2px solid transparent',
+          transition: 'background-color 0.15s, border 0.15s'
+        }}
+        onDragOver={(e) => handleDragOver(e, '')}
+        onDragEnter={(e) => handleDragEnter(e, '')}
+        onDragLeave={(e) => handleDragLeave(e, '')}
+        onDrop={(e) => handleDrop(e, '')}
+      >
         <div 
-          style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: '#fff', fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.375rem', 
+            color: dragOverTarget === '' ? 'var(--color-teal)' : '#fff', 
+            fontSize: '0.75rem', 
+            fontWeight: 600, 
+            padding: '0.25rem 0.5rem', 
+            marginBottom: '0.5rem', 
+            cursor: 'pointer',
+            borderLeft: dragOverTarget === '' ? '2px dashed var(--color-teal)' : '2px solid transparent'
+          }}
           onClick={() => toggleFolder('root')}
         >
           <div style={{ transform: collapsedFolders['root'] ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>

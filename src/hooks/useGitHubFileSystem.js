@@ -312,10 +312,15 @@ export function useGitHubFileSystem() {
     });
   };
 
+  const moveItem = async (_dragItem, _targetFolder) => {
+    console.warn("Move operation not implemented for GitHub filesystem");
+    return false;
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles, uploadImage
+    folderImages, loadFiles, uploadImage, moveItem
   };
 }

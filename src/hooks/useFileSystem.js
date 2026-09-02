@@ -382,10 +382,37 @@ export function useFileSystem() {
     }
   };
 
+  const moveItem = async (dragItem, targetFolder) => {
+    try {
+      const res = await fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: dragItem.type,
+          sourcePath: dragItem.sourcePath,
+          sourceFolder: dragItem.sourceFolder,
+          imageName: dragItem.imageName,
+          targetFolder
+        })
+      });
+      if (res.ok) {
+        await loadFiles();
+        return true;
+      } else {
+        const errText = await res.text();
+        alert(`Failed to move item: ${errText}`);
+        return false;
+      }
+    } catch (err) {
+      alert(`Failed to move item: ${err.message}`);
+      return false;
+    }
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles, uploadImage, renameImage
+    folderImages, loadFiles, uploadImage, renameImage, moveItem
   };
 }

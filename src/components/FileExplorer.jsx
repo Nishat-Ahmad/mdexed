@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus, Eye, EyeOff, FoldVertical, UnfoldVertical } from 'lucide-react';
 
 const isHiddenPath = (pathStr) => {
   if (!pathStr) return false;
@@ -75,7 +75,65 @@ const buildExplorerTree = (files, emptyFolders, folderImages, showHiddenFolders 
 };
 
 export default function FileExplorer({ fsManager }) {
-  const [collapsedFolders, setCollapsedFolders] = useState({});
+  const [collapsedFolders, setCollapsedFolders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mdexed_collapsed_folders');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load collapsed folders from localStorage:', e);
+    }
+    return null;
+  });
+
+  const {
+    files,
+    emptyFolders,
+    activeFileId,
+    setActiveFileId,
+    createNewFolder,
+    createNewFile,
+    handleFileUpload,
+    deleteItem,
+    renameItem,
+    folderImages,
+    loadFiles,
+    renameImage,
+    moveItem
+  } = fsManager;
+
+  const isFolderCollapsed = (folderPath) => {
+    if (folderPath === 'root' || folderPath === '') {
+      if (collapsedFolders && 'root' in collapsedFolders) {
+        return Boolean(collapsedFolders['root']);
+      }
+      return false;
+    }
+
+    if (collapsedFolders && folderPath in collapsedFolders) {
+      return Boolean(collapsedFolders[folderPath]);
+    }
+
+    // Default behavior if not explicitly recorded in saved state:
+    // If activeFileId is inside this folder (or equals this folder), keep it open
+    if (activeFileId) {
+      const parts = activeFileId.split('/');
+      let checkPath = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        checkPath = checkPath ? `${checkPath}/${parts[i]}` : parts[i];
+        if (checkPath === folderPath) {
+          return false;
+        }
+      }
+      if (activeFileId === folderPath) {
+        return false;
+      }
+    }
+
+    // Default other folders to collapsed so starting the script doesn't open all folders
+    return true;
+  };
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [uploadTargetFolder, setUploadTargetFolder] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
@@ -97,21 +155,6 @@ export default function FileExplorer({ fsManager }) {
 
   const [dragOverTarget, setDragOverTarget] = useState(null);
 
-  const {
-    files,
-    emptyFolders,
-    activeFileId,
-    setActiveFileId,
-    createNewFolder,
-    createNewFile,
-    handleFileUpload,
-    deleteItem,
-    renameItem,
-    folderImages,
-    loadFiles,
-    renameImage,
-    moveItem
-  } = fsManager;
 
   // Auto-select folder when active file changes
   React.useEffect(() => {
@@ -175,17 +218,84 @@ export default function FileExplorer({ fsManager }) {
   }, [selectedFolder, fsManager]);
 
   const toggleFolder = (folderName) => {
-    setCollapsedFolders(prev => ({ ...prev, [folderName]: !prev[folderName] }));
+    const nextCollapsed = !isFolderCollapsed(folderName);
+    setCollapsedFolders(prev => {
+      const updated = { ...(prev || {}), [folderName]: nextCollapsed };
+      try {
+        localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save collapsed folders to localStorage:', e);
+      }
+      return updated;
+    });
+  };
+
+  const handleCreateFile = (parentPath) => {
+    if (parentPath) {
+      setCollapsedFolders(prev => {
+        const updated = { ...(prev || {}), [parentPath]: false };
+        try {
+          localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+        } catch (_err) {}
+        return updated;
+      });
+    }
+    createNewFile(parentPath);
+  };
+
+  const handleCreateFolder = (parentPath) => {
+    if (parentPath) {
+      setCollapsedFolders(prev => {
+        const updated = { ...(prev || {}), [parentPath]: false };
+        try {
+          localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+        } catch (_err) {}
+        return updated;
+      });
+    }
+    createNewFolder(parentPath);
+  };
+
+  const handleDeleteFolder = async (e, folderPath) => {
+    await deleteItem(e, folderPath, false);
+    setCollapsedFolders(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      delete updated[folderPath];
+      Object.keys(updated).forEach(k => {
+        if (k.startsWith(folderPath + '/')) {
+          delete updated[k];
+        }
+      });
+      try {
+        localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+      } catch (_err) {}
+      return updated;
+    });
   };
 
   const handleRename = async (e, oldName, isFile) => {
     const res = await renameItem(e, oldName, isFile);
     if (res && res.success) {
-      setCollapsedFolders(prev => {
-        const updated = { ...prev, [res.cleanName]: prev[res.oldName] };
-        delete updated[res.oldName];
-        return updated;
-      });
+      if (!isFile) {
+        setCollapsedFolders(prev => {
+          const currentCollapsed = isFolderCollapsed(res.oldName);
+          const updated = { ...(prev || {}) };
+          delete updated[res.oldName];
+          updated[res.cleanName] = currentCollapsed;
+          Object.keys(updated).forEach(k => {
+            if (k.startsWith(res.oldName + '/')) {
+              const newK = res.cleanName + k.substring(res.oldName.length);
+              updated[newK] = updated[k];
+              delete updated[k];
+            }
+          });
+          try {
+            localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+          } catch (_err) {}
+          return updated;
+        });
+      }
     }
   };
 
@@ -306,6 +416,49 @@ export default function FileExplorer({ fsManager }) {
 
   const tree = buildExplorerTree(files, emptyFolders, folderImages, showHiddenFolders);
 
+  const getAllFolderPaths = (node) => {
+    let paths = [];
+    if (node.type === 'folder' && node.path) {
+      paths.push(node.path);
+    }
+    if (node.children) {
+      node.children.forEach(child => {
+        if (child.type === 'folder') {
+          paths = paths.concat(getAllFolderPaths(child));
+        }
+      });
+    }
+    return paths;
+  };
+
+  const collapseAllFolders = () => {
+    const allPaths = getAllFolderPaths(tree);
+    setCollapsedFolders(prev => {
+      const updated = { ...(prev || {}) };
+      allPaths.forEach(p => {
+        updated[p] = true;
+      });
+      try {
+        localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+      } catch (_err) {}
+      return updated;
+    });
+  };
+
+  const expandAllFolders = () => {
+    const allPaths = getAllFolderPaths(tree);
+    setCollapsedFolders(prev => {
+      const updated = { ...(prev || {}) };
+      allPaths.forEach(p => {
+        updated[p] = false;
+      });
+      try {
+        localStorage.setItem('mdexed_collapsed_folders', JSON.stringify(updated));
+      } catch (_err) {}
+      return updated;
+    });
+  };
+
   const renderNode = (node, level = 0) => {
     if (node.type === 'file') {
       const isActive = node.path === activeFileId;
@@ -355,7 +508,7 @@ export default function FileExplorer({ fsManager }) {
         return sortedChildren.map(child => renderNode(child, level));
       }
 
-      const isCollapsed = collapsedFolders[node.path];
+      const isCollapsed = isFolderCollapsed(node.path);
       const rawImages = folderImages[node.path] || [];
       const images = showHiddenFolders ? rawImages : rawImages.filter(img => !img.startsWith('.'));
       const isSelected = selectedFolder === node.path;
@@ -402,7 +555,7 @@ export default function FileExplorer({ fsManager }) {
               borderRadius: isDragTarget ? '4px' : '0',
               transition: 'background-color 0.15s ease, border-left 0.15s ease'
             }}
-            onClick={(e) => {
+            onClick={() => {
               toggleFolder(node.path);
               setSelectedFolder(node.path);
             }}
@@ -423,7 +576,7 @@ export default function FileExplorer({ fsManager }) {
               className="action-btn btn-create"
               onClick={(e) => {
                 e.stopPropagation();
-                createNewFile(node.path);
+                handleCreateFile(node.path);
               }}
               style={{ marginRight: '0.25rem' }}
               title="Create Markdown under this folder"
@@ -433,7 +586,7 @@ export default function FileExplorer({ fsManager }) {
               className="action-btn btn-create"
               onClick={(e) => {
                 e.stopPropagation();
-                createNewFolder(node.path);
+                handleCreateFolder(node.path);
               }}
               style={{ marginRight: '0.25rem' }}
               title="Create subfolder under this folder"
@@ -454,7 +607,7 @@ export default function FileExplorer({ fsManager }) {
             <Trash2 
               size={12} 
               className="action-btn btn-danger"
-              onClick={(e) => deleteItem(e, node.path, false)} 
+              onClick={(e) => handleDeleteFolder(e, node.path)} 
             />
           </div>
 
@@ -539,13 +692,31 @@ export default function FileExplorer({ fsManager }) {
           >
             {showHiddenFolders ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
+          <button 
+            onClick={collapseAllFolders} 
+            style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex', transition: 'color 0.2s' }} 
+            title="Collapse All Folders"
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-zinc-400)'}
+          >
+            <FoldVertical size={16} />
+          </button>
+          <button 
+            onClick={expandAllFolders} 
+            style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex', transition: 'color 0.2s' }} 
+            title="Expand All Folders"
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-zinc-400)'}
+          >
+            <UnfoldVertical size={16} />
+          </button>
           <button onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="Open File">
             <Upload size={16} />
           </button>
-          <button onClick={() => createNewFolder('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New Folder">
+          <button onClick={() => handleCreateFolder('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New Folder">
             <FolderPlus size={16} />
           </button>
-          <button onClick={() => createNewFile('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
+          <button onClick={() => handleCreateFile('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
             <Plus size={16} />
           </button>
         </div>
@@ -580,10 +751,10 @@ export default function FileExplorer({ fsManager }) {
           }}
           onClick={() => toggleFolder('root')}
         >
-          <div style={{ transform: collapsedFolders['root'] ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+          <div style={{ transform: isFolderCollapsed('root') ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
             <ChevronDown size={14} style={{ color: 'var(--color-zinc-400)' }} /> 
           </div>
-          {collapsedFolders['root'] ? (
+          {isFolderCollapsed('root') ? (
             <Folder size={14} style={{ color: 'var(--color-teal)' }} />
           ) : (
             <FolderOpen size={14} style={{ color: 'var(--color-teal)' }} />
@@ -591,7 +762,7 @@ export default function FileExplorer({ fsManager }) {
           src/content/blog
         </div>
         
-        {!collapsedFolders['root'] && renderNode(tree)}
+        {!isFolderCollapsed('root') && renderNode(tree)}
       </div>
 
       {selectedFolder && (

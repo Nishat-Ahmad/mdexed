@@ -26,10 +26,26 @@ export function useFileSystem() {
       body: DEFAULT_BODY
     }
   ]);
-  const [activeFileId, setActiveFileId] = useState('default-1');
+  const [activeFileId, setActiveFileId] = useState(() => {
+    try {
+      return localStorage.getItem('mdexed_active_file_id') || 'default-1';
+    } catch (_e) {
+      return 'default-1';
+    }
+  });
   const [emptyFolders, setEmptyFolders] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'unsaved', 'saving', 'error'
   const [folderImages, setFolderImages] = useState({});
+
+  useEffect(() => {
+    if (activeFileId && activeFileId !== 'default-1') {
+      try {
+        localStorage.setItem('mdexed_active_file_id', activeFileId);
+      } catch (e) {
+        console.error('Failed to save activeFileId to localStorage:', e);
+      }
+    }
+  }, [activeFileId]);
   
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
   
@@ -90,6 +106,11 @@ export function useFileSystem() {
           if (loadedFiles.length > 0) {
             setFiles(loadedFiles);
             setActiveFileId(currentId => {
+              const savedFileId = localStorage.getItem('mdexed_active_file_id');
+              if (savedFileId && loadedFiles.some(f => f.id === savedFileId)) {
+                prevActiveFileIdRef.current = savedFileId;
+                return savedFileId;
+              }
               if (currentId && loadedFiles.some(f => f.id === currentId)) {
                 prevActiveFileIdRef.current = currentId;
                 return currentId;

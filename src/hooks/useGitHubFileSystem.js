@@ -12,11 +12,27 @@ Your markdown content starts here...
 
 export function useGitHubFileSystem() {
   const [files, setFiles] = useState([]);
-  const [activeFileId, setActiveFileId] = useState(null);
+  const [activeFileId, setActiveFileId] = useState(() => {
+    try {
+      return localStorage.getItem('mdexed_active_file_id') || null;
+    } catch (_e) {
+      return null;
+    }
+  });
   const [emptyFolders, setEmptyFolders] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved');
   const [folderImages, setFolderImages] = useState({});
   const [githubToken, setGithubToken] = useState(localStorage.getItem('github_pat') || '');
+  
+  useEffect(() => {
+    if (activeFileId) {
+      try {
+        localStorage.setItem('mdexed_active_file_id', activeFileId);
+      } catch (e) {
+        console.error('Failed to save activeFileId to localStorage:', e);
+      }
+    }
+  }, [activeFileId]);
   
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
   const filesRef = useRef(files);
@@ -101,6 +117,11 @@ export function useGitHubFileSystem() {
       if (loadedFiles.length > 0) {
         setFiles(loadedFiles);
         setActiveFileId(currentId => {
+          const savedFileId = localStorage.getItem('mdexed_active_file_id');
+          if (savedFileId && loadedFiles.some(f => f.id === savedFileId)) {
+            prevActiveFileIdRef.current = savedFileId;
+            return savedFileId;
+          }
           if (currentId && loadedFiles.some(f => f.id === currentId)) {
             prevActiveFileIdRef.current = currentId;
             return currentId;

@@ -338,10 +338,15 @@ export function useGitHubFileSystem() {
     return false;
   };
 
+  const handlePushToRepo = async () => {
+    alert("In Cloud mode, updates are already committed directly to GitHub via API.");
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles, uploadImage, moveItem
+    folderImages, loadFiles, uploadImage, moveItem,
+    pushStatus: 'idle', pushMessage: '', handlePushToRepo
   };
 }

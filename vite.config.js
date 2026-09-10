@@ -2,6 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec);
 
 // Custom helper to scan directories recursively for markdown files and empty folders
 const getFilesRecursively = (dir, baseDir) => {
@@ -414,6 +418,74 @@ const localFileSystemApi = () => {
             } catch (err) {
               res.statusCode = 500;
               res.end(err.message);
+            }
+          });
+          return;
+        }
+
+        // Handle Git Push
+        if (req.url === '/api/git-push' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk.toString(); });
+          req.on('end', async () => {
+            try {
+              let customMessage = '';
+              if (body) {
+                try {
+                  const parsed = JSON.parse(body);
+                  customMessage = parsed.message || '';
+                } catch {}
+              }
+
+              const blogDir = path.resolve(process.cwd(), 'src', 'content', 'blog');
+              const gitDir = path.join(blogDir, '.git');
+              if (!fs.existsSync(gitDir)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'src/content/blog is not a git repository' }));
+                return;
+              }
+
+              // Determine current branch
+              let branch = 'main';
+              try {
+                const { stdout: branchOut } = await execAsync('git branch --show-current', { cwd: blogDir });
+                if (branchOut.trim()) branch = branchOut.trim();
+              } catch {}
+
+              // Check for changes (untracked, modified, deleted)
+              const { stdout: statusOut } = await execAsync('git status --porcelain', { cwd: blogDir });
+              const hasChanges = statusOut.trim().length > 0;
+
+              if (hasChanges) {
+                await execAsync('git add -A', { cwd: blogDir });
+                const now = new Date();
+                const timestamp = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const commitMsg = customMessage.trim() || `Update notes (${timestamp})`;
+                const safeMsg = commitMsg.replace(/"/g, '\\"');
+                await execAsync(`git commit -m "${safeMsg}"`, { cwd: blogDir });
+              }
+
+              // Push to remote
+              const { stdout: pushOut, stderr: pushErr } = await execAsync(`git push origin ${branch}`, { cwd: blogDir });
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                success: true,
+                hasChanges,
+                message: hasChanges ? 'Notes committed and pushed successfully!' : 'Notes repository is already up to date with remote.',
+                details: (pushOut || pushErr || '').trim()
+              }));
+            } catch (err) {
+              console.error('Git push error:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                success: false,
+                error: err.message || 'Unknown git error',
+                stderr: err.stderr || ''
+              }));
             }
           });
           return;

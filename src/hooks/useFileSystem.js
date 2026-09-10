@@ -35,6 +35,8 @@ export function useFileSystem() {
   });
   const [emptyFolders, setEmptyFolders] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'unsaved', 'saving', 'error'
+  const [pushStatus, setPushStatus] = useState('idle'); // 'idle', 'pushing', 'success', 'error'
+  const [pushMessage, setPushMessage] = useState('');
   const [folderImages, setFolderImages] = useState({});
 
   useEffect(() => {
@@ -430,10 +432,56 @@ export function useFileSystem() {
     }
   };
 
+  const handlePushToRepo = async () => {
+    if (pushStatus === 'pushing') return;
+
+    // Flush current active file to disk first if unsaved
+    if (activeFile) {
+      const currentContent = generateMarkdown(activeFile.frontmatter, activeFile.body);
+      const lastSaved = lastSavedContentRef.current[activeFile.id];
+      if (currentContent !== lastSaved) {
+        await saveFileContent(activeFile.id, currentContent);
+      }
+    }
+
+    setPushStatus('pushing');
+    setPushMessage('');
+
+    try {
+      const res = await fetch('/api/git-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPushStatus('success');
+        setPushMessage(data.message || 'Pushed successfully');
+        setTimeout(() => {
+          setPushStatus('idle');
+        }, 4000);
+        return true;
+      } else {
+        setPushStatus('error');
+        const errMsg = data.error || data.stderr || 'Failed to push notes to repository';
+        setPushMessage(errMsg);
+        alert(`Git Push Failed:\n${errMsg}`);
+        return false;
+      }
+    } catch (err) {
+      console.error('Git push error:', err);
+      setPushStatus('error');
+      setPushMessage(err.message);
+      alert(`Git Push Failed:\n${err.message}`);
+      return false;
+    }
+  };
+
   return {
     files, emptyFolders, activeFileId, setActiveFileId, activeFile,
     updateActiveFile, createNewFile, handleFileUpload, createNewFolder,
     deleteItem, renameItem, handleSaveToDisk, saveStatus,
-    folderImages, loadFiles, uploadImage, renameImage, moveItem
+    folderImages, loadFiles, uploadImage, renameImage, moveItem,
+    pushStatus, pushMessage, handlePushToRepo
   };
 }

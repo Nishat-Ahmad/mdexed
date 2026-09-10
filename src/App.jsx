@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu, Files, Info, FileEdit, PanelRight, Save, Loader2, Check, AlertCircle, Keyboard, Palette } from 'lucide-react';
+import { Menu, Files, Info, FileEdit, PanelRight, Save, Loader2, Check, AlertCircle, Keyboard, Palette, GitBranch } from 'lucide-react';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import Sidebar from './components/Sidebar';
@@ -167,8 +167,44 @@ function MainApp({ fsManager }) {
           </button>
         </div>
         
-        {/* SAVE INDICATOR AT BOTTOM OF ACTIVITY BAR */}
-        <div style={{ paddingBottom: '0.5rem' }}>
+        {/* ACTION BUTTONS AT BOTTOM OF ACTIVITY BAR */}
+        <div style={{ paddingBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          {/* PUSH TO REPO BUTTON */}
+          {(() => {
+            switch (fsManager.pushStatus) {
+              case 'pushing':
+                return (
+                  <button style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-teal)', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? '1rem' : '0', cursor: 'not-allowed', opacity: 0.8 }} title="Pushing Notes to Repo..." disabled>
+                    <Loader2 size={22} className="animate-spin" style={{ minWidth: '22px' }} />
+                    {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Pushing...</span>}
+                  </button>
+                );
+              case 'success':
+                return (
+                  <button onClick={fsManager.handlePushToRepo} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-teal)', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? '1rem' : '0', cursor: 'pointer', transition: 'color 0.2s' }} title={fsManager.pushMessage || "Notes Pushed Successfully!"}>
+                    <Check size={22} style={{ minWidth: '22px' }} />
+                    {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Pushed!</span>}
+                  </button>
+                );
+              case 'error':
+                return (
+                  <button onClick={fsManager.handlePushToRepo} style={{ width: '100%', background: 'transparent', border: 'none', color: '#ef4444', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? '1rem' : '0', cursor: 'pointer', transition: 'color 0.2s' }} title={fsManager.pushMessage ? `Push Failed: ${fsManager.pushMessage} (Click to Retry)` : "Push Failed (Click to Retry)"}>
+                    <AlertCircle size={22} style={{ minWidth: '22px' }} />
+                    {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Retry Push</span>}
+                  </button>
+                );
+              case 'idle':
+              default:
+                return (
+                  <button onClick={fsManager.handlePushToRepo} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-zinc-400)', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? '1rem' : '0', cursor: 'pointer', transition: 'color 0.2s' }} title="Push Updated Notes to Repo" onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-teal)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-zinc-400)'}>
+                    <GitBranch size={22} style={{ minWidth: '22px' }} />
+                    {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Push Notes</span>}
+                  </button>
+                );
+            }
+          })()}
+
+          {/* SAVE INDICATOR */}
           {(() => {
             switch (fsManager.saveStatus) {
               case 'saving':

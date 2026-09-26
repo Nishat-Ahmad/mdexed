@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "sync-blog": "git -C src/content/blog pull origin main || git clone https://github.com/Nishat-Ahmad/mdexed-content.git src/content/blog",
+    "sync-blog": "node scripts/sync-blog.js",
     "predev": "npm run sync-blog",
     "dev": "vite",
     "build": "vite build",

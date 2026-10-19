@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus, Eye, EyeOff, FoldVertical, UnfoldVertical, GitBranch, Loader2, Check, AlertCircle } from 'lucide-react';
+import { ChevronDown, Folder, FolderOpen, FileText, Image, Trash2, Edit2, Upload, FolderPlus, Plus, Eye, EyeOff, FoldVertical, UnfoldVertical } from 'lucide-react';
 
 const isHiddenPath = (pathStr) => {
   if (!pathStr) return false;
@@ -718,45 +718,6 @@ export default function FileExplorer({ fsManager }) {
           </button>
           <button onClick={() => handleCreateFile('')} style={{ background: 'none', border: 'none', color: 'var(--color-zinc-400)', cursor: 'pointer', padding: 0, display: 'flex' }} title="New File">
             <Plus size={16} />
-          </button>
-          <div style={{ width: '1px', height: '14px', backgroundColor: 'var(--color-zinc-700)', margin: '0 2px' }} />
-          <button 
-            onClick={fsManager.handlePushToRepo} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: fsManager.pushStatus === 'pushing' 
-                ? 'var(--color-teal)' 
-                : fsManager.pushStatus === 'error' 
-                ? '#ef4444' 
-                : fsManager.pushStatus === 'success' 
-                ? 'var(--color-teal)' 
-                : 'var(--color-zinc-400)', 
-              cursor: fsManager.pushStatus === 'pushing' ? 'not-allowed' : 'pointer', 
-              padding: 0, 
-              display: 'flex', 
-              alignItems: 'center', 
-              transition: 'color 0.2s' 
-            }} 
-            title={
-              fsManager.pushStatus === 'pushing' ? "Pushing notes to repo..." :
-              fsManager.pushStatus === 'success' ? (fsManager.pushMessage || "Notes pushed to repo!") :
-              fsManager.pushStatus === 'error' ? (fsManager.pushMessage ? `Push failed: ${fsManager.pushMessage} (Click to retry)` : "Push failed (Click to retry)") :
-              "Push notes to repo (Git Push)"
-            }
-            onMouseEnter={(e) => { if (fsManager.pushStatus === 'idle') e.currentTarget.style.color = 'var(--color-teal)'; }}
-            onMouseLeave={(e) => { if (fsManager.pushStatus === 'idle') e.currentTarget.style.color = 'var(--color-zinc-400)'; }}
-            disabled={fsManager.pushStatus === 'pushing'}
-          >
-            {fsManager.pushStatus === 'pushing' ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : fsManager.pushStatus === 'success' ? (
-              <Check size={16} />
-            ) : fsManager.pushStatus === 'error' ? (
-              <AlertCircle size={16} />
-            ) : (
-              <GitBranch size={16} />
-            )}
           </button>
         </div>
       </div>

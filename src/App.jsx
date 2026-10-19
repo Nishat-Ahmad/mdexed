@@ -6,9 +6,14 @@ import Sidebar from './components/Sidebar';
 import Resizer from './components/Resizer';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useGitHubFileSystem } from './hooks/useGitHubFileSystem';
+import { applyThemeById } from './utils/theme';
 import './index.css';
 
 function MainApp({ fsManager }) {
+  useEffect(() => {
+    const savedThemeId = localStorage.getItem('mdexed-theme') || 'default';
+    applyThemeById(savedThemeId);
+  }, []);
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState('');
   
@@ -22,8 +27,21 @@ function MainApp({ fsManager }) {
   
   const [isActivityBarExpanded, setIsActivityBarExpanded] = useState(false);
 
+  const showSidebarRef = useRef(showSidebar);
+  showSidebarRef.current = showSidebar;
+  const activeSidebarTabRef = useRef(activeSidebarTab);
+  activeSidebarTabRef.current = activeSidebarTab;
+
   const toggleEditor = () => setShowEditor((prev) => !prev);
   const togglePreview = () => setShowPreview((prev) => !prev);
+  const toggleFileExplorer = () => {
+    if (showSidebarRef.current && activeSidebarTabRef.current === 'explorer') {
+      setShowSidebar(false);
+    } else {
+      setActiveSidebarTab('explorer');
+      setShowSidebar(true);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -36,7 +54,10 @@ function MainApp({ fsManager }) {
           return;
         }
 
-        if (e.altKey && !e.shiftKey) {
+        if (e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          toggleFileExplorer();
+        } else if (e.altKey && !e.shiftKey) {
           e.preventDefault();
           togglePreview();
         } else if (!e.altKey && !e.shiftKey) {
@@ -180,7 +201,7 @@ function MainApp({ fsManager }) {
           
           <div style={{ height: '1rem' }} /> {/* Spacer */}
 
-          <button onClick={() => handleSidebarTabClick('explorer')} style={{ background: 'transparent', border: 'none', borderLeft: (showSidebar && activeSidebarTab === 'explorer') ? '2px solid var(--color-teal)' : '2px solid transparent', color: (showSidebar && activeSidebarTab === 'explorer') ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title="Explorer">
+          <button onClick={() => handleSidebarTabClick('explorer')} style={{ background: 'transparent', border: 'none', borderLeft: (showSidebar && activeSidebarTab === 'explorer') ? '2px solid var(--color-teal)' : '2px solid transparent', color: (showSidebar && activeSidebarTab === 'explorer') ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title="Explorer (Ctrl+Shift+B)">
             <Files size={22} style={{ minWidth: '22px' }} />
             {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Files</span>}
           </button>
@@ -310,6 +331,7 @@ function MainApp({ fsManager }) {
                    onImagePaste={handleImagePaste} 
                    onToggleEditor={toggleEditor}
                    onTogglePreview={togglePreview}
+                   onToggleExplorer={toggleFileExplorer}
                  />
               )}
             </div>

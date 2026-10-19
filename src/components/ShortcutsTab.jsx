@@ -2,6 +2,7 @@ import React from 'react';
 
 export default function ShortcutsTab() {
   const viewShortcuts = [
+    { key: 'Ctrl + Shift + B', action: 'Toggle File Explorer' },
     { key: 'Ctrl + B', action: 'Toggle Markdown Editor' },
     { key: 'Ctrl + Alt + B', action: 'Toggle Live Viewer' }
   ];

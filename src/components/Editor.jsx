@@ -1,7 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import MonacoEditor, { useMonaco } from '@monaco-editor/react';
+import { getAllThemes } from '../utils/theme';
 
-export default function Editor({ value, onChange, onImagePaste, onToggleEditor, onTogglePreview }) {
+export default function Editor({ value, onChange, onImagePaste, onToggleEditor, onTogglePreview, onToggleExplorer }) {
   const editorRef = useRef(null);
   const monaco = useMonaco();
 
@@ -9,6 +10,8 @@ export default function Editor({ value, onChange, onImagePaste, onToggleEditor, 
   onToggleEditorRef.current = onToggleEditor;
   const onTogglePreviewRef = useRef(onTogglePreview);
   onTogglePreviewRef.current = onTogglePreview;
+  const onToggleExplorerRef = useRef(onToggleExplorer);
+  onToggleExplorerRef.current = onToggleExplorer;
 
   useEffect(() => {
     if (monaco) {
@@ -29,10 +32,8 @@ export default function Editor({ value, onChange, onImagePaste, onToggleEditor, 
       // Function to apply the correct theme based on localStorage
       const applyCurrentTheme = () => {
         const savedThemeId = localStorage.getItem('mdexed-theme');
-        let isLight = false;
-        if (savedThemeId === 'light' || savedThemeId === 'electric-chartreuse') {
-          isLight = true;
-        }
+        const theme = getAllThemes().find(t => t.id === savedThemeId);
+        const isLight = theme ? Boolean(theme.isLight) : false;
         monaco.editor.setTheme(isLight ? 'transparent-light' : 'transparent-dark');
       };
 
@@ -105,6 +106,13 @@ export default function Editor({ value, onChange, onImagePaste, onToggleEditor, 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => {
       if (onTogglePreviewRef.current) {
         onTogglePreviewRef.current();
+      }
+    });
+
+    // Toggle File Explorer (Ctrl+Shift+B)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyB, () => {
+      if (onToggleExplorerRef.current) {
+        onToggleExplorerRef.current();
       }
     });
 

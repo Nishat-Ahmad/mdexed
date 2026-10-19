@@ -236,6 +236,7 @@ export default function Editor({ value, onChange, onImagePaste, onToggleEditor, 
         onChange={onChange}
         onMount={handleEditorDidMount}
         options={{
+          automaticLayout: true,
           minimap: { enabled: false },
           wordWrap: 'on',
           lineNumbers: 'on',

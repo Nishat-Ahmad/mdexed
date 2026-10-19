@@ -59,13 +59,21 @@ function MainApp({ fsManager }) {
     }
   };
   
+  const mainContentRef = useRef(null);
   const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(50);
+
   const isSidebarDragging = useRef(false);
+  const sidebarStartX = useRef(0);
+  const sidebarStartWidth = useRef(320);
 
   // Editor Resizer Logic
   const startDragging = (e) => {
     e.preventDefault();
     isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = editorWidth;
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup', stopDragging);
     document.body.style.cursor = 'col-resize';
@@ -73,10 +81,13 @@ function MainApp({ fsManager }) {
   };
 
   const onDrag = (e) => {
-    if (!isDragging.current) return;
-    const availableWidth = window.innerWidth - (showSidebar ? sidebarWidth : 0);
-    const newWidth = ((e.clientX - (showSidebar ? sidebarWidth : 0)) / availableWidth) * 100;
-    if (newWidth >= 10 && newWidth <= 90) setEditorWidth(newWidth);
+    if (!isDragging.current || !mainContentRef.current) return;
+    const rect = mainContentRef.current.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const deltaX = e.clientX - dragStartX.current;
+    const deltaPercent = (deltaX / rect.width) * 100;
+    const newWidth = Math.min(Math.max(dragStartWidth.current + deltaPercent, 10), 90);
+    setEditorWidth(newWidth);
   };
 
   const stopDragging = () => {
@@ -91,6 +102,8 @@ function MainApp({ fsManager }) {
   const startSidebarDragging = (e) => {
     e.preventDefault();
     isSidebarDragging.current = true;
+    sidebarStartX.current = e.clientX;
+    sidebarStartWidth.current = sidebarWidth;
     document.addEventListener('mousemove', onSidebarDrag);
     document.addEventListener('mouseup', stopSidebarDragging);
     document.body.style.cursor = 'col-resize';
@@ -99,8 +112,9 @@ function MainApp({ fsManager }) {
 
   const onSidebarDrag = (e) => {
     if (!isSidebarDragging.current) return;
-    const newWidth = e.clientX;
-    if (newWidth >= 200 && newWidth <= 800) setSidebarWidth(newWidth);
+    const deltaX = e.clientX - sidebarStartX.current;
+    const newWidth = Math.min(Math.max(sidebarStartWidth.current + deltaX, 200), 800);
+    setSidebarWidth(newWidth);
   };
 
   const stopSidebarDragging = () => {
@@ -281,32 +295,38 @@ function MainApp({ fsManager }) {
       
       {showSidebar && (showEditor || showPreview) && <Resizer onMouseDown={startSidebarDragging} />}
 
-      {/* MIDDLE PANE - EDITOR */}
-      {showEditor && (
-        <div style={{ width: showPreview ? `${editorWidth}%` : 'auto', flex: showPreview ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
-          {fsManager.activeFile && (
-             <Editor 
-               value={fsManager.activeFile.body} 
-               onChange={(body) => fsManager.updateActiveFile({ body })} 
-               onImagePaste={handleImagePaste} 
-               onToggleEditor={toggleEditor}
-               onTogglePreview={togglePreview}
-             />
+      {/* MAIN CONTENT AREA (EDITOR + PREVIEW) */}
+      {(showEditor || showPreview) && (
+        <div 
+          ref={mainContentRef} 
+          style={{ flex: 1, display: 'flex', minWidth: 0, height: '100%', overflow: 'hidden' }}
+        >
+          {showEditor && (
+            <div style={{ width: showPreview ? `${editorWidth}%` : '100%', flex: showPreview ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
+              {fsManager.activeFile && (
+                 <Editor 
+                   value={fsManager.activeFile.body} 
+                   onChange={(body) => fsManager.updateActiveFile({ body })} 
+                   onImagePaste={handleImagePaste} 
+                   onToggleEditor={toggleEditor}
+                   onTogglePreview={togglePreview}
+                 />
+              )}
+            </div>
           )}
-        </div>
-      )}
-      
-      {showEditor && showPreview && <Resizer onMouseDown={startDragging} />}
-      
-      {/* RIGHT PANE - PREVIEW */}
-      {showPreview && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {fsManager.activeFile && (
-             <Preview 
-               content={fsManager.activeFile.body} 
-               frontmatter={fsManager.activeFile.frontmatter} 
-               onHeadingsChange={setHeadings} 
-             />
+          
+          {showEditor && showPreview && <Resizer onMouseDown={startDragging} />}
+          
+          {showPreview && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              {fsManager.activeFile && (
+                 <Preview 
+                   content={fsManager.activeFile.body} 
+                   frontmatter={fsManager.activeFile.frontmatter} 
+                   onHeadingsChange={setHeadings} 
+                 />
+              )}
+            </div>
           )}
         </div>
       )}

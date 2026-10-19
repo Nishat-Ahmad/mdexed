@@ -22,6 +22,34 @@ function MainApp({ fsManager }) {
   
   const [isActivityBarExpanded, setIsActivityBarExpanded] = useState(false);
 
+  const toggleEditor = () => setShowEditor((prev) => !prev);
+  const togglePreview = () => setShowPreview((prev) => !prev);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isCtrl = e.ctrlKey || e.metaKey;
+      if (!isCtrl) return;
+
+      if (e.key === 'b' || e.key === 'B') {
+        const isInsideMonaco = document.activeElement && document.activeElement.closest('.monaco-editor');
+        if (isInsideMonaco) {
+          return;
+        }
+
+        if (e.altKey && !e.shiftKey) {
+          e.preventDefault();
+          togglePreview();
+        } else if (!e.altKey && !e.shiftKey) {
+          e.preventDefault();
+          toggleEditor();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleSidebarTabClick = (tab) => {
     if (showSidebar && activeSidebarTab === tab) {
       setShowSidebar(false);
@@ -157,11 +185,11 @@ function MainApp({ fsManager }) {
           
           <div style={{ height: '1rem' }} /> {/* Spacer */}
           
-          <button onClick={() => setShowEditor(!showEditor)} style={{ background: 'transparent', border: 'none', borderLeft: showEditor ? '2px solid var(--color-teal)' : '2px solid transparent', color: showEditor ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title={showEditor ? "Hide Markdown Editor" : "Show Markdown Editor"}>
+          <button onClick={toggleEditor} style={{ background: 'transparent', border: 'none', borderLeft: showEditor ? '2px solid var(--color-teal)' : '2px solid transparent', color: showEditor ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title={showEditor ? "Hide Markdown Editor (Ctrl+B)" : "Show Markdown Editor (Ctrl+B)"}>
             <FileEdit size={22} style={{ minWidth: '22px' }} />
             {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Editor</span>}
           </button>
-          <button onClick={() => setShowPreview(!showPreview)} style={{ background: 'transparent', border: 'none', borderLeft: showPreview ? '2px solid var(--color-teal)' : '2px solid transparent', color: showPreview ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title={showPreview ? "Hide Live Viewer" : "Show Live Viewer"}>
+          <button onClick={togglePreview} style={{ background: 'transparent', border: 'none', borderLeft: showPreview ? '2px solid var(--color-teal)' : '2px solid transparent', color: showPreview ? 'var(--color-teal)' : 'var(--color-zinc-400)', cursor: 'pointer', padding: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: isActivityBarExpanded ? 'flex-start' : 'center', paddingLeft: isActivityBarExpanded ? 'calc(1rem - 2px)' : '0', transition: 'all 0.2s' }} title={showPreview ? "Hide Live Viewer (Ctrl+Alt+B)" : "Show Live Viewer (Ctrl+Alt+B)"}>
             <PanelRight size={22} style={{ minWidth: '22px' }} />
             {isActivityBarExpanded && <span style={{ marginLeft: '0.75rem', fontSize: '0.8125rem', fontWeight: 500 }}>Live Viewer</span>}
           </button>
@@ -261,6 +289,8 @@ function MainApp({ fsManager }) {
                value={fsManager.activeFile.body} 
                onChange={(body) => fsManager.updateActiveFile({ body })} 
                onImagePaste={handleImagePaste} 
+               onToggleEditor={toggleEditor}
+               onTogglePreview={togglePreview}
              />
           )}
         </div>

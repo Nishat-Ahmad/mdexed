@@ -1,9 +1,14 @@
 import React, { useRef, useEffect } from 'react';
 import MonacoEditor, { useMonaco } from '@monaco-editor/react';
 
-export default function Editor({ value, onChange, onImagePaste }) {
+export default function Editor({ value, onChange, onImagePaste, onToggleEditor, onTogglePreview }) {
   const editorRef = useRef(null);
   const monaco = useMonaco();
+
+  const onToggleEditorRef = useRef(onToggleEditor);
+  onToggleEditorRef.current = onToggleEditor;
+  const onTogglePreviewRef = useRef(onTogglePreview);
+  onTogglePreviewRef.current = onTogglePreview;
 
   useEffect(() => {
     if (monaco) {
@@ -81,9 +86,26 @@ export default function Editor({ value, onChange, onImagePaste }) {
       editor.focus();
     };
 
-    // Bold (Ctrl+B)
+    // Bold (Ctrl+B) if text selected; Toggle Markdown Editor if no text selected
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => {
-      formatText('**', '**');
+      const selection = editor.getSelection();
+      const model = editor.getModel();
+      const selectedText = (model && selection) ? model.getValueInRange(selection) : '';
+
+      if (selectedText && selectedText.length > 0) {
+        formatText('**', '**');
+      } else {
+        if (onToggleEditorRef.current) {
+          onToggleEditorRef.current();
+        }
+      }
+    });
+
+    // Toggle Live Viewer (Ctrl+Alt+B)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => {
+      if (onTogglePreviewRef.current) {
+        onTogglePreviewRef.current();
+      }
     });
 
     // Italic (Ctrl+I)

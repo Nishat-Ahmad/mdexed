@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import MonacoEditor, { useMonaco } from '@monaco-editor/react';
 import { getAllThemes } from '../utils/theme';
 
-export default function Editor({ value, onChange, onImagePaste, onToggleEditor, onTogglePreview, onToggleExplorer }) {
+function Editor({ value, onChange, onImagePaste, onToggleEditor, onTogglePreview, onToggleExplorer }) {
   const editorRef = useRef(null);
   const monaco = useMonaco();
 
@@ -256,3 +256,5 @@ export default function Editor({ value, onChange, onImagePaste, onToggleEditor, 
     </div>
   );
 }
+
+export default React.memo(Editor);

@@ -81,69 +81,126 @@ function MainApp({ fsManager }) {
   };
   
   const mainContentRef = useRef(null);
+  const editorPaneRef = useRef(null);
+  const sidebarContainerRef = useRef(null);
+
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(50);
+  const currentEditorWidthRef = useRef(editorWidth);
+  currentEditorWidthRef.current = editorWidth;
+  const dragRafId = useRef(null);
 
   const isSidebarDragging = useRef(false);
   const sidebarStartX = useRef(0);
   const sidebarStartWidth = useRef(320);
+  const currentSidebarWidthRef = useRef(sidebarWidth);
+  currentSidebarWidthRef.current = sidebarWidth;
+  const sidebarRafId = useRef(null);
 
-  // Editor Resizer Logic
+  // Editor Resizer Logic (Lag-free: Direct DOM updates during drag, commit to React state on mouseup)
   const startDragging = (e) => {
     e.preventDefault();
     isDragging.current = true;
     dragStartX.current = e.clientX;
-    dragStartWidth.current = editorWidth;
+    dragStartWidth.current = currentEditorWidthRef.current;
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup', stopDragging);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    if (mainContentRef.current) {
+      mainContentRef.current.style.pointerEvents = 'none';
+    }
   };
 
   const onDrag = (e) => {
     if (!isDragging.current || !mainContentRef.current) return;
-    const rect = mainContentRef.current.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const deltaX = e.clientX - dragStartX.current;
-    const deltaPercent = (deltaX / rect.width) * 100;
-    const newWidth = Math.min(Math.max(dragStartWidth.current + deltaPercent, 10), 90);
-    setEditorWidth(newWidth);
+    const clientX = e.clientX;
+
+    if (dragRafId.current) {
+      cancelAnimationFrame(dragRafId.current);
+    }
+
+    dragRafId.current = requestAnimationFrame(() => {
+      if (!isDragging.current || !mainContentRef.current) return;
+      const rect = mainContentRef.current.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const deltaX = clientX - dragStartX.current;
+      const deltaPercent = (deltaX / rect.width) * 100;
+      const newWidth = Math.min(Math.max(dragStartWidth.current + deltaPercent, 10), 90);
+      currentEditorWidthRef.current = newWidth;
+      if (editorPaneRef.current) {
+        editorPaneRef.current.style.width = `${newWidth}%`;
+      }
+    });
   };
 
   const stopDragging = () => {
+    if (!isDragging.current) return;
     isDragging.current = false;
+    if (dragRafId.current) {
+      cancelAnimationFrame(dragRafId.current);
+      dragRafId.current = null;
+    }
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDragging);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    if (mainContentRef.current) {
+      mainContentRef.current.style.pointerEvents = '';
+    }
+    setEditorWidth(currentEditorWidthRef.current);
   };
 
-  // Sidebar Resizer Logic
+  // Sidebar Resizer Logic (Lag-free: Direct DOM updates during drag, commit to React state on mouseup)
   const startSidebarDragging = (e) => {
     e.preventDefault();
     isSidebarDragging.current = true;
     sidebarStartX.current = e.clientX;
-    sidebarStartWidth.current = sidebarWidth;
+    sidebarStartWidth.current = currentSidebarWidthRef.current;
     document.addEventListener('mousemove', onSidebarDrag);
     document.addEventListener('mouseup', stopSidebarDragging);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    if (mainContentRef.current) {
+      mainContentRef.current.style.pointerEvents = 'none';
+    }
   };
 
   const onSidebarDrag = (e) => {
     if (!isSidebarDragging.current) return;
-    const deltaX = e.clientX - sidebarStartX.current;
-    const newWidth = Math.min(Math.max(sidebarStartWidth.current + deltaX, 200), 800);
-    setSidebarWidth(newWidth);
+    const clientX = e.clientX;
+
+    if (sidebarRafId.current) {
+      cancelAnimationFrame(sidebarRafId.current);
+    }
+
+    sidebarRafId.current = requestAnimationFrame(() => {
+      if (!isSidebarDragging.current) return;
+      const deltaX = clientX - sidebarStartX.current;
+      const newWidth = Math.min(Math.max(sidebarStartWidth.current + deltaX, 200), 800);
+      currentSidebarWidthRef.current = newWidth;
+      if (sidebarContainerRef.current) {
+        sidebarContainerRef.current.style.width = `${newWidth}px`;
+      }
+    });
   };
 
   const stopSidebarDragging = () => {
+    if (!isSidebarDragging.current) return;
     isSidebarDragging.current = false;
+    if (sidebarRafId.current) {
+      cancelAnimationFrame(sidebarRafId.current);
+      sidebarRafId.current = null;
+    }
     document.removeEventListener('mousemove', onSidebarDrag);
     document.removeEventListener('mouseup', stopSidebarDragging);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    if (mainContentRef.current) {
+      mainContentRef.current.style.pointerEvents = '';
+    }
+    setSidebarWidth(currentSidebarWidthRef.current);
   };
 
   // Scrollspy logic
@@ -305,13 +362,13 @@ function MainApp({ fsManager }) {
       </div>
 
       {showSidebar && (
-        <Sidebar 
-          width={sidebarWidth} 
-          fsManager={fsManager} 
-          headings={headings} 
-          activeHeadingId={activeHeadingId} 
-          activeSidebarTab={activeSidebarTab}
-        />
+        <div ref={sidebarContainerRef} style={{ width: `${sidebarWidth}px`, height: '100%', flexShrink: 0, display: 'flex' }}>
+          <Sidebar 
+            width={sidebarWidth} 
+            fsManager={fsManager} 
+            activeSidebarTab={activeSidebarTab}
+          />
+        </div>
       )}
       
       {showSidebar && (showEditor || showPreview) && <Resizer onMouseDown={startSidebarDragging} />}
@@ -323,7 +380,7 @@ function MainApp({ fsManager }) {
           style={{ flex: 1, display: 'flex', minWidth: 0, height: '100%', overflow: 'hidden' }}
         >
           {showEditor && (
-            <div style={{ width: showPreview ? `${editorWidth}%` : '100%', flex: showPreview ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
+            <div ref={editorPaneRef} style={{ width: showPreview ? `${editorWidth}%` : '100%', flex: showPreview ? 'none' : 1, display: 'flex', flexDirection: 'column' }}>
               {fsManager.activeFile && (
                  <Editor 
                    value={fsManager.activeFile.body} 
@@ -345,6 +402,10 @@ function MainApp({ fsManager }) {
                  <Preview 
                    content={fsManager.activeFile.body} 
                    frontmatter={fsManager.activeFile.frontmatter} 
+                   activeFileId={fsManager.activeFile.id}
+                   headings={headings}
+                   activeHeadingId={activeHeadingId}
+                   onHeadingClick={setActiveHeadingId}
                    onHeadingsChange={setHeadings} 
                  />
               )}

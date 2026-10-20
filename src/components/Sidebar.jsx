@@ -4,7 +4,7 @@ import SettingsTab from './SettingsTab';
 import ShortcutsTab from './ShortcutsTab';
 import ThemesTab from './ThemesTab';
 
-export default function Sidebar({ width, fsManager, headings, activeHeadingId, activeSidebarTab }) {
+export default function Sidebar({ width, fsManager, activeSidebarTab }) {
   const { 
     activeFileId, activeFile, updateActiveFile 
   } = fsManager;
@@ -26,8 +26,6 @@ export default function Sidebar({ width, fsManager, headings, activeHeadingId, a
             activeFile={activeFile}
             activeFileId={activeFileId}
             updateActiveFile={updateActiveFile}
-            headings={headings}
-            activeHeadingId={activeHeadingId}
           />
         )}
       </div>
